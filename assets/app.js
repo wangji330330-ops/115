@@ -196,15 +196,15 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.1.0';
-  const APP_VERSION_CODE = 2;
+  const APP_VERSION = '1.1.1';
+  const APP_VERSION_CODE = 3;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '修复安卓版启动闪退，应用现在可以正常打开',
-    '新增右上角设置：安装、数据备份与恢复、保存位置',
-    '新增应用内检查更新，下载完成后直接调起系统安装器',
-    '新增版本号、更新内容和检查更新状态',
-    '完善手机端设置面板与无障碍细节'
+    '安卓版禁止双指与双击缩放，界面保持原始大小',
+    '应用封面改为三个摆正的 777，不再使用水果图案',
+    '去掉点击、长按时的焦点框和文字选中框',
+    '摆正标题旁的金色 7，并放大右上角设置按钮',
+    '没有摇奖券时点击“摇一摇”不再自动滚动页面'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -1414,41 +1414,61 @@
     }
   }
 
+  function maybeCheckUpdateOnSettingsOpen() {
+    if (updatePhase === 'checking' || updatePhase === 'downloading' || updatePhase === 'verifying' || updatePhase === 'installing') {
+      return;
+    }
+    if (!updateInfo || Date.now() - updateCheckedAt > 60000) {
+      window.setTimeout(function () {
+        if (!el.settingsLayer.hidden && !el.settingsLayer.classList.contains('is-closing')) {
+          checkForUpdates(false);
+        }
+      }, 180);
+    }
+  }
+
   function openSettings() {
-    if (!el.settingsLayer || !el.settingsLayer.hidden) return;
-    settingsLastFocus = document.activeElement;
+    if (!el.settingsLayer) return;
+    const wasClosing = !el.settingsLayer.hidden && el.settingsLayer.classList.contains('is-closing');
+    if (!el.settingsLayer.hidden && !wasClosing) return;
+
+    if (el.settingsLayer.hidden) settingsLastFocus = document.activeElement;
     window.clearTimeout(settingsCloseTimer);
     el.settingsLayer.hidden = false;
+    el.settingsLayer.classList.remove('is-closing');
     el.settingsBtn.setAttribute('aria-expanded', 'true');
     document.body.classList.add('settings-open');
     if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = true;
     renderPlatformSections();
     renderUpdatePanel();
     window.requestAnimationFrame(function () {
+      if (el.settingsLayer.hidden) return;
       el.settingsLayer.classList.add('is-open');
       el.settingsClose.focus({ preventScroll: true });
     });
 
-    if (updatePhase !== 'checking' && updatePhase !== 'downloading' && updatePhase !== 'verifying' && updatePhase !== 'installing') {
-      if (!updateInfo || Date.now() - updateCheckedAt > 60000) {
-        window.setTimeout(function () {
-          if (!el.settingsLayer.hidden) checkForUpdates(false);
-        }, 180);
-      }
-    }
+    if (!wasClosing) maybeCheckUpdateOnSettingsOpen();
   }
 
   function closeSettings() {
     if (!el.settingsLayer || el.settingsLayer.hidden) return;
     if (!el.confirmLayer.hidden) settleConfirm(false);
     el.settingsLayer.classList.remove('is-open');
+    el.settingsLayer.classList.add('is-closing');
     el.settingsBtn.setAttribute('aria-expanded', 'false');
     window.clearTimeout(settingsCloseTimer);
+
+    // Unlock the page immediately. The drawer can finish its slide-out
+    // animation without swallowing taps or leaving the whole page inert.
+    document.body.classList.remove('settings-open');
+    if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = false;
+
     settingsCloseTimer = window.setTimeout(function () {
       if (el.settingsLayer.classList.contains('is-open')) return;
+      const shouldRestoreFocus = el.settingsDrawer.contains(document.activeElement);
       el.settingsLayer.hidden = true;
-      document.body.classList.remove('settings-open');
-      if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = false;
+      el.settingsLayer.classList.remove('is-closing');
+      if (!shouldRestoreFocus) return;
       const target = settingsLastFocus && typeof settingsLastFocus.focus === 'function'
         ? settingsLastFocus
         : el.settingsBtn;
@@ -1465,7 +1485,8 @@
 
   function handleSettingsKeydown(event) {
     const confirmOpen = el.confirmLayer && !el.confirmLayer.hidden;
-    const settingsOpen = el.settingsLayer && !el.settingsLayer.hidden;
+    const settingsOpen = el.settingsLayer && !el.settingsLayer.hidden
+      && !el.settingsLayer.classList.contains('is-closing');
     if (!confirmOpen && !settingsOpen) return;
 
     if (event.key === 'Escape') {
@@ -2167,9 +2188,6 @@
     if (state.tickets <= 0) {
       audio.error();
       showToast('摇奖券用完了。先完成一个今日任务，就能再摇一次。', 'warn', 3600);
-      if (window.innerWidth <= 1180) {
-        el.taskCard.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'center' });
-      }
       el.ticketBox.classList.remove('is-bump');
       void el.ticketBox.offsetWidth;
       el.ticketBox.classList.add('is-bump');
@@ -2593,6 +2611,30 @@
 
     el.soundToggle.addEventListener('click', toggleSound);
 
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Tab' || event.key.indexOf('Arrow') === 0) {
+        document.documentElement.classList.add('using-keyboard');
+      }
+    }, true);
+
+    document.addEventListener('pointerdown', function () {
+      document.documentElement.classList.remove('using-keyboard');
+    }, true);
+
+    document.addEventListener('gesturestart', function (event) {
+      event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('gesturechange', function (event) {
+      event.preventDefault();
+    }, { passive: false });
+
+    document.addEventListener('touchmove', function (event) {
+      if (event.touches && event.touches.length > 1) {
+        event.preventDefault();
+      }
+    }, { passive: false });
+
     document.addEventListener('keydown', handleSettingsKeydown);
 
     document.addEventListener('keydown', function (event) {
@@ -2642,7 +2684,10 @@
       if (state.sound) audio.unlock();
     }, { once: true, passive: true });
 
-    el.settingsBtn.addEventListener('click', openSettings);
+    el.settingsBtn.addEventListener('click', function (event) {
+      event.preventDefault();
+      openSettings();
+    });
     el.settingsClose.addEventListener('click', closeSettings);
     el.settingsDoneBtn.addEventListener('click', closeSettings);
     $$('[data-close-settings]').forEach(function (node) {

@@ -1,18 +1,18 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 2,
-  "versionName": "1.1.0",
+  "versionCode": 3,
+  "versionName": "1.1.1",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk",
-  "sha256": "9db84be785a12678c929cf28544bbee80ec9159903f9738d5f69ed722db7c979",
-  "size": 415263,
+  "apkUrl": "lucky-study-machine.apk?v=111",
+  "sha256": "1c7e6141f61208525fff638e51403ae0ef6c12c2b97978537ded09a888e9c8a8",
+  "size": 357919,
   "notes": [
-    "修复安卓版启动闪退，应用现在可以正常打开",
-    "新增右上角设置：安装、数据备份与恢复、保存位置",
-    "新增应用内检查更新，下载完成后直接调起系统安装器",
-    "新增版本号、更新内容和检查更新状态",
-    "完善手机端设置面板与无障碍细节"
+    "安卓版禁止双指与双击缩放，界面保持原始大小",
+    "应用封面改为三个摆正的 777，不再使用水果图案",
+    "去掉点击、长按时的焦点框和文字选中框",
+    "摆正标题旁的金色 7，并放大右上角设置按钮",
+    "没有摇奖券时点击“摇一摇”不再自动滚动页面"
   ]
 }

@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
-  <title id="title">幸运学习机</title>
+  <title id="title">幸运学习机 777</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#661638"/>
-      <stop offset=".52" stop-color="#3a0c25"/>
-      <stop offset="1" stop-color="#1b0714"/>
+      <stop offset="0" stop-color="#621538"/>
+      <stop offset=".52" stop-color="#390c24"/>
+      <stop offset="1" stop-color="#190611"/>
     </linearGradient>
     <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#fff1b5"/>
@@ -12,12 +12,12 @@
       <stop offset="1" stop-color="#c37a27"/>
     </linearGradient>
     <linearGradient id="cream" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff9ed"/>
-      <stop offset=".55" stop-color="#fff3df"/>
-      <stop offset="1" stop-color="#efd7b9"/>
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset=".55" stop-color="#fff2dd"/>
+      <stop offset="1" stop-color="#eed6b8"/>
     </linearGradient>
     <linearGradient id="red" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#e23e58"/>
+      <stop offset="0" stop-color="#d53255"/>
       <stop offset="1" stop-color="#990c32"/>
     </linearGradient>
     <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
@@ -39,20 +39,12 @@
     <path d="M90 158v-30h332v30c-96 16-236 16-332 0Z" fill="#4d2424" opacity=".2"/>
     <path d="M90 351v2c0 17 13 30 30 30h272c17 0 30-13 30-30v-6c-100 16-232 16-332 4Z" fill="#4d2424" opacity=".14"/>
     <path d="M202 145v222M312 145v222" stroke="#7a463a" stroke-opacity=".25" stroke-width="2"/>
-    <path d="M202 145v222M312 145v222" stroke="#fffaf0" stroke-opacity=".55" stroke-width="1" transform="translate(2)"/>
-    <path d="M101 262h310" stroke="#dfaa5d" stroke-opacity=".3" stroke-width="2"/>
+    <path d="M204 145v222M314 145v222" stroke="#fffaf0" stroke-opacity=".55" stroke-width="1"/>
+    <path d="M101 256h310" stroke="#dfaa5d" stroke-opacity=".3" stroke-width="2"/>
   </g>
-  <g>
-    <path d="M141 223c2-16 16-28 33-27 12 1 20 7 25 16" fill="none" stroke="#4f9148" stroke-width="6" stroke-linecap="round"/>
-    <path d="M177 211c1-20 12-29 30-38" fill="none" stroke="#4f9148" stroke-width="6" stroke-linecap="round"/>
-    <path d="M177 212c13-2 25-8 31-18-1 14-10 23-27 27Z" fill="#65a954"/>
-    <circle cx="141" cy="266" r="29" fill="#b91746"/>
-    <circle cx="174" cy="278" r="28" fill="#d12255"/>
-    <circle cx="132" cy="257" r="8" fill="#ffb8ac" opacity=".72"/>
-    <circle cx="165" cy="269" r="6" fill="#ffb0a7" opacity=".45"/>
-  </g>
-  <text x="257" y="315" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="900" font-size="174" fill="url(#red)" stroke="#fff0d7" stroke-opacity=".45" stroke-width="1.5">7</text>
-  <path d="M366 218l13 31 34 3-26 23 8 33-29-18-29 18 8-33-26-23 34-3Z" fill="url(#gold)" stroke="#fff0bc" stroke-opacity=".75" stroke-width="1.5"/>
+  <text x="151" y="319" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="900" font-size="146" fill="url(#red)" stroke="#fff0d7" stroke-opacity=".45" stroke-width="1.5">7</text>
+  <text x="256" y="319" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="900" font-size="146" fill="url(#red)" stroke="#fff0d7" stroke-opacity=".45" stroke-width="1.5">7</text>
+  <text x="361" y="319" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="900" font-size="146" fill="url(#red)" stroke="#fff0d7" stroke-opacity=".45" stroke-width="1.5">7</text>
   <g fill="#f6ca72">
     <circle cx="240" cy="425" r="4"/><circle cx="256" cy="425" r="4"/><circle cx="272" cy="425" r="4"/>
   </g>

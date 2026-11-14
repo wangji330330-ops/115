@@ -27,13 +27,18 @@
 
 *,
 *::before,
-*::after { box-sizing: border-box; }
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
 
 html {
   min-width: 320px;
   background: var(--bg);
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 body {
@@ -52,6 +57,17 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 
 button,
@@ -80,7 +96,9 @@ svg { display: block; }
   background: var(--gold-bright);
 }
 
-:focus-visible {
+:focus { outline: none; }
+
+html.using-keyboard :focus-visible {
   outline: 2px solid var(--gold-bright);
   outline-offset: 3px;
 }
@@ -251,11 +269,12 @@ body::after {
 .brand-mark > span {
   position: relative;
   z-index: 1;
+  display: block;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 31px;
   font-weight: 900;
   line-height: 1;
-  transform: translateY(-1px) skewX(-4deg);
+  transform: translateY(-1px);
   text-shadow: 0 1px 0 rgba(255, 249, 211, .7);
 }
 
@@ -1922,18 +1941,47 @@ kbd {
 
 .toast.is-win::before { content: "★"; color: #ffd36d; }
 
-.settings-toggle { position: relative; }
+.settings-toggle {
+  position: relative;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: auto;
+  min-width: 0;
+  padding: 0 12px;
+  border-radius: 999px;
+  touch-action: manipulation;
+}
+
+.settings-toggle svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+}
+
+.settings-label {
+  color: rgba(255, 238, 210, .7);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+
+.settings-toggle:hover .settings-label { color: var(--gold-bright); }
 
 .settings-newdot {
   position: absolute;
-  top: 2px;
-  right: 2px;
+  top: 3px;
+  right: 5px;
   width: 8px;
   height: 8px;
   border: 2px solid #10070f;
   border-radius: 50%;
   background: var(--coral);
   box-shadow: 0 0 8px rgba(255, 111, 125, .8);
+  pointer-events: none;
 }
 
 .settings-newdot[hidden] { display: none !important; }
@@ -1987,6 +2035,7 @@ body.settings-open { overflow: hidden; }
 
 .settings-layer.is-open .settings-backdrop { opacity: 1; }
 .settings-layer.is-open .settings-drawer { transform: translateX(0); }
+.settings-layer.is-closing { pointer-events: none; }
 
 .settings-head {
   display: flex;
@@ -2524,8 +2573,8 @@ body.settings-open { overflow: hidden; }
   box-shadow: 0 5px 14px -6px rgba(164, 49, 55, .5);
 }
 
-/* 页面切换时避免背景仍然可聚焦 */
-body.settings-open .page-shell { pointer-events: none; }
+/* 页面切换时避免背景仍然可聚焦；关闭一开始就解除，防止偶发锁死点击。 */
+body.settings-open .page-shell { overflow: hidden; }
 
 .noscript-note {
   position: fixed;
@@ -2609,8 +2658,11 @@ body.settings-open .page-shell { pointer-events: none; }
 
   .apk-link { height: 33px; padding: 0 10px; font-size: 9.5px; }
   .apk-link svg { width: 14px; height: 14px; }
-  .sound-toggle { width: 33px; height: 33px; }
+  .sound-toggle { width: 38px; height: 38px; }
   .sound-toggle svg { width: 17px; height: 17px; }
+  .settings-toggle { width: auto; min-width: 0; height: 38px; padding: 0 10px; gap: 5px; }
+  .settings-toggle svg { width: 14px; height: 14px; }
+  .settings-label { font-size: 9.5px; }
 
   .app-grid { gap: 18px; }
 
@@ -2827,6 +2879,8 @@ body.settings-open .page-shell { pointer-events: none; }
   .reel-window { --tile-h: 52px; }
   .ticket-icon { display: none; }
   .settings-close { width: 30px; height: 30px; flex-basis: 30px; }
+  .settings-toggle { padding: 0 9px; gap: 4px; }
+  .settings-label { font-size: 9px; }
 }
 
 /* ---------- 减少动态效果 ---------- */

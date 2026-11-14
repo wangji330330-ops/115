@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Generate the Lucky Study app icons (PWA + Android) without external assets."""
+"""Generate the Lucky Study app icons (PWA + Android).
+
+The cover is a clean slot window with three evenly spaced, upright sevens.
+No fruit, no extra symbols. Run this after changing the icon design:
+    python tools/make_icons.py
+"""
 from __future__ import annotations
 
 import math
@@ -19,44 +24,31 @@ def lerp(a, b, t):
 
 def rounded_mask(size, radius):
     mask = Image.new("L", (size, size), 0)
-    d = ImageDraw.Draw(mask)
-    d.rounded_rectangle((0, 0, size - 1, size - 1), radius=radius, fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, size - 1, size - 1), radius=radius, fill=255)
     return mask
 
 
 def background(size, maskable):
-    top = (93, 17, 52)
-    bottom = (25, 7, 19)
+    top = (92, 16, 52)
+    bottom = (24, 6, 18)
     img = Image.new("RGB", (size, size))
-    pix = img.load()
-    cx, cy = size * 0.28, size * 0.1
+    pixels = img.load()
+    glow_x, glow_y = size * 0.5, size * 0.04
     for y in range(size):
         for x in range(size):
-            t = y / size
-            base = lerp(top, bottom, t)
-            # warm glow in the top-left corner
-            dx, dy = x - cx, y - cy
-            glow = max(0.0, 1.0 - math.sqrt(dx * dx + dy * dy) / (size * 0.85)) ** 2
-            warmed = (
-                min(255, base[0] + int(44 * glow)),
-                min(255, base[1] + int(30 * glow)),
-                min(255, base[2] + int(20 * glow)),
+            base = lerp(top, bottom, y / size)
+            dx, dy = x - glow_x, y - glow_y
+            glow = max(0.0, 1.0 - math.sqrt(dx * dx + dy * dy) / (size * 0.72)) ** 2
+            pixels[x, y] = (
+                min(255, base[0] + int(52 * glow)),
+                min(255, base[1] + int(26 * glow)),
+                min(255, base[2] + int(18 * glow)),
             )
-            pix[x, y] = warmed
-    if not maskable:
-        out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        out.paste(img, (0, 0), rounded_mask(size, int(size * 0.225)))
-        return out
-    return img.convert("RGBA")
-
-
-def star_points(cx, cy, outer, inner, points=5, rotation=-math.pi / 2):
-    result = []
-    for i in range(points * 2):
-        r = outer if i % 2 == 0 else inner
-        angle = rotation + i * math.pi / points
-        result.append((cx + math.cos(angle) * r, cy + math.sin(angle) * r))
-    return result
+    if maskable:
+        return img.convert("RGBA")
+    out = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    out.paste(img, (0, 0), rounded_mask(size, int(size * 0.225)))
+    return out
 
 
 def draw_icon(maskable=False):
@@ -70,216 +62,159 @@ def draw_icon(maskable=False):
     def box(x0, y0, x1, y1):
         return (s(x0), s(y0), s(x1), s(y1))
 
+    def width(value):
+        return max(1, int(value * scale))
+
     img = background(size, maskable)
     draw = ImageDraw.Draw(img, "RGBA")
 
-    # glossy diagonal sheen
+    # Soft glass sheen.
     sheen = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     sd = ImageDraw.Draw(sheen, "RGBA")
-    sd.polygon([(0, 0), (size * 0.6, 0), (0, size * 0.72)], fill=(255, 255, 255, 13))
-    sd.polygon(
-        [(size * 0.68, 0), (size * 0.76, 0), (size * 0.12, size)],
-        fill=(255, 255, 255, 9),
-    )
+    sd.polygon([(0, 0), (size * 0.58, 0), (0, size * 0.68)], fill=(255, 255, 255, 12))
     img.alpha_composite(sheen)
 
-    # outer gold frame
+    # Gold frame and beading.
     draw.rounded_rectangle(
         (s(55), s(55), s(969), s(969)),
-        radius=int(s(185) - s(0)),
-        outline=(246, 197, 103, 185),
-        width=max(3, int(s(10) - s(0))),
+        radius=width(178),
+        outline=(246, 197, 103, 190),
+        width=width(10),
     )
     draw.rounded_rectangle(
-        (s(78), s(78), s(946), s(946)),
-        radius=int(s(164) - s(0)),
-        outline=(255, 228, 159, 58),
-        width=max(1, int(s(3) - s(0))),
+        (s(79), s(79), s(945), s(945)),
+        radius=width(158),
+        outline=(255, 231, 167, 54),
+        width=width(3),
     )
 
-    # marquee bulbs around the top and bottom of the frame
     bulbs = []
     for i in range(7):
-        bulbs.append((s(225 + i * 95.5), s(117)))
-        bulbs.append((s(225 + i * 95.5), s(907)))
-    glow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    gd = ImageDraw.Draw(glow, "RGBA")
-    for x, y in bulbs:
-        r = max(2.0, s(7) - s(0))
-        gd.ellipse((x - r * 3.2, y - r * 3.2, x + r * 3.2, y + r * 3.2), fill=(255, 193, 82, 42))
-    glow = glow.filter(ImageFilter.GaussianBlur(max(2, int(s(8) - s(0)))))
-    img.alpha_composite(glow)
-    for i, (x, y) in enumerate(bulbs):
-        r = max(2.0, s(5.5) - s(0))
-        color = (255, 225, 151, 255) if i % 3 else (255, 158, 136, 245)
-        draw.ellipse((x - r, y - r, x + r, y + r), fill=color)
+        bulbs.append((s(224 + i * 96), s(118)))
+        bulbs.append((s(224 + i * 96), s(906)))
+    glow_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow_layer, "RGBA")
+    for bx, by in bulbs:
+        r = s(5.6) - s(0)
+        gd.ellipse((bx - r * 3.3, by - r * 3.3, bx + r * 3.3, by + r * 3.3),
+                   fill=(255, 194, 85, 48))
+    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(width(9)))
+    img.alpha_composite(glow_layer)
+    for i, (bx, by) in enumerate(bulbs):
+        r = s(5.6) - s(0)
+        color = (255, 227, 157, 255) if i % 4 else (255, 157, 137, 248)
+        draw.ellipse((bx - r, by - r, bx + r, by + r), fill=color)
 
-    # recessed machine window
+    # Recessed machine window.
     shadow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    shd = ImageDraw.Draw(shadow, "RGBA")
-    shd.rounded_rectangle(
-        box(147, 238, 877, 812),
-        radius=int(s(92) - s(0)),
-        fill=(0, 0, 0, 150),
+    ImageDraw.Draw(shadow, "RGBA").rounded_rectangle(
+        box(143, 232, 881, 806),
+        radius=width(92),
+        fill=(0, 0, 0, 165),
     )
-    shadow = shadow.filter(ImageFilter.GaussianBlur(max(4, int(s(22) - s(0)))))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(width(22)))
     img.alpha_composite(shadow)
-
     draw.rounded_rectangle(
-        box(155, 230, 869, 790),
-        radius=int(s(82) - s(0)),
-        fill=(23, 8, 16, 255),
-        outline=(244, 189, 88, 220),
-        width=max(3, int(s(13) - s(0))),
+        box(156, 226, 868, 792),
+        radius=width(80),
+        fill=(22, 8, 16, 255),
+        outline=(244, 190, 91, 230),
+        width=width(13),
     )
     draw.rounded_rectangle(
-        box(175, 250, 849, 770),
-        radius=int(s(64) - s(0)),
-        outline=(255, 230, 171, 76),
-        width=max(1, int(s(2.5) - s(0))),
+        box(174, 244, 850, 774),
+        radius=width(62),
+        outline=(255, 235, 181, 78),
+        width=width(3),
     )
 
-    # creamy reel face (opaque base, then composited translucent shading)
+    # Cream reel window, divided into three even cells.
     reel = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     rd = ImageDraw.Draw(reel, "RGBA")
-    rd.rounded_rectangle(
-        box(184, 259, 840, 761),
-        radius=int(s(54) - s(0)),
-        fill=(252, 238, 215, 255),
-    )
-    for y in range(int(s(259)), int(s(761))):
-        t = (y - s(259)) / max(1.0, s(761) - s(259))
-        # pale cream at the top, warmer parchment at the bottom
-        color = lerp((255, 249, 236), (238, 216, 188), t)
-        rd.line(
-            (s(184) + int(s(3) - s(0)), y, s(840) - int(s(3) - s(0)), y),
-            fill=color + (255,),
-        )
-    reel_shade = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    rsd = ImageDraw.Draw(reel_shade, "RGBA")
-    # soft top and bottom interior shadows
-    rsd.rounded_rectangle(
-        box(184, 259, 840, 345),
-        radius=int(s(54) - s(0)),
-        fill=(82, 37, 36, 86),
-    )
-    rsd.rectangle(box(184, 315, 840, 345), fill=(82, 37, 36, 38))
-    rsd.rounded_rectangle(
-        box(184, 675, 840, 761),
-        radius=int(s(54) - s(0)),
-        fill=(82, 37, 36, 72),
-    )
-    rsd.rectangle(box(184, 675, 840, 710), fill=(82, 37, 36, 30))
-    # subtle centre payline glow
-    rsd.rectangle(box(196, 474, 828, 570), fill=(255, 198, 92, 20))
-    rsd.line((s(204), s(522), s(820), s(522)), fill=(222, 165, 74, 62), width=max(1, int(s(3) - s(0))))
-    # three reel dividers
-    for x in (400, 624):
-        rsd.line((s(x), s(285), s(x), s(735)), fill=(123, 68, 55, 45), width=max(1, int(s(4) - s(0))))
-        rsd.line((s(x + 3), s(285), s(x + 3), s(735)), fill=(255, 250, 235, 165), width=max(1, int(s(2) - s(0))))
-    reel.alpha_composite(reel_shade)
+    rd.rounded_rectangle(box(184, 254, 840, 764), radius=width(52), fill=(255, 250, 240, 255))
+    top_color = (255, 249, 235)
+    bottom_color = (238, 216, 188)
+    for y in range(int(s(254)), int(s(764))):
+        t = (y - s(254)) / max(1.0, s(764) - s(254))
+        shade = lerp(top_color, bottom_color, t)
+        rd.line((s(184) + width(3), y, s(840) - width(3), y), fill=shade + (255,))
+
+    shade_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    sh = ImageDraw.Draw(shade_layer, "RGBA")
+    sh.rounded_rectangle(box(184, 254, 840, 340), radius=width(52), fill=(84, 38, 37, 74))
+    sh.rectangle(box(184, 314, 840, 340), fill=(84, 38, 37, 26))
+    sh.rounded_rectangle(box(184, 678, 840, 764), radius=width(52), fill=(84, 38, 37, 66))
+    sh.rectangle(box(184, 678, 840, 712), fill=(84, 38, 37, 20))
+    sh.line((s(198), s(512), s(826), s(512)), fill=(220, 164, 73, 72), width=width(3))
+
+    # Even reel separators.
+    for x in (402, 622):
+        sh.line((s(x), s(284), s(x), s(734)), fill=(123, 68, 55, 42), width=width(4))
+        sh.line((s(x + 3), s(284), s(x + 3), s(734)), fill=(255, 251, 238, 160), width=width(2))
+    reel.alpha_composite(shade_layer)
     img.alpha_composite(reel)
 
-    # ---- cherry (left reel) ----
-    cherry_shadow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    cd = ImageDraw.Draw(cherry_shadow, "RGBA")
-    stem_w = max(2, int(s(11) - s(0)))
-    cd.line((s(274), s(458), s(302), s(389), s(336), s(361)), fill=(58, 104, 56, 220), width=stem_w, joint="curve")
-    cd.line((s(300), s(428), s(321), s(381), s(338), s(361)), fill=(61, 109, 58, 220), width=stem_w, joint="curve")
-    leaf = [(s(320), s(371)), (s(371), s(344)), (s(367), s(387)), (s(343), s(387))]
-    cd.polygon(leaf, fill=(88, 145, 70, 235))
-    cd.line((s(324), s(374), s(359), s(371)), fill=(47, 96, 47, 180), width=max(1, int(s(3) - s(0))))
-    cd.ellipse(box(228, 493, 341, 606), fill=(163, 17, 54, 255))
-    cd.ellipse(box(290, 521, 397, 628), fill=(185, 22, 66, 255))
-    # little highlights
-    cd.ellipse(box(249, 510, 287, 543), fill=(255, 193, 181, 200))
-    cd.ellipse(box(310, 539, 344, 569), fill=(255, 188, 177, 150))
-    img.alpha_composite(cherry_shadow)
-
-    # ---- lucky seven (centre reel) ----
+    # Three upright sevens, centered in their own reels.
     try:
-        font_seven = ImageFont.truetype(FONT_GEORGIA_BOLD, int(318 * scale))
+        font = ImageFont.truetype(FONT_GEORGIA_BOLD, int(255 * scale))
     except OSError:
-        font_seven = ImageFont.load_default()
-    seven_center = (s(514), s(512))
+        font = ImageFont.load_default()
+    centers = [s(293), s(512), s(731)]
+    center_y = s(514)
     seven_shadow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     sd = ImageDraw.Draw(seven_shadow, "RGBA")
-    sd.text(
-        (seven_center[0], seven_center[1] + s(14) - s(0)),
-        "7",
-        font=font_seven,
-        fill=(113, 29, 43, 105),
-        anchor="mm",
-        stroke_width=max(2, int(s(7) - s(0))),
-        stroke_fill=(113, 29, 43, 65),
-    )
-    seven_shadow = seven_shadow.filter(ImageFilter.GaussianBlur(max(2, int(s(6) - s(0)))))
+    for cx in centers:
+        sd.text(
+            (cx, center_y + s(10) - s(0)),
+            "7",
+            font=font,
+            fill=(94, 24, 40, 92),
+            anchor="mm",
+            stroke_width=width(7),
+            stroke_fill=(94, 24, 40, 55),
+        )
+    seven_shadow = seven_shadow.filter(ImageFilter.GaussianBlur(width(5)))
     img.alpha_composite(seven_shadow)
-    draw.text(
-        seven_center,
-        "7",
-        font=font_seven,
-        fill=(174, 12, 53, 255),
-        anchor="mm",
-        stroke_width=max(1, int(s(3) - s(0))),
-        stroke_fill=(255, 244, 217, 150),
-    )
 
-    # ---- star (right reel) ----
-    star_cx, star_cy = s(733), s(516)
-    star_outer = (s(91) - s(0))
-    star_inner = (s(40) - s(0))
-    star_shadow_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    std = ImageDraw.Draw(star_shadow_layer, "RGBA")
-    std.polygon(
-        star_points(star_cx, star_cy + s(8) - s(0), star_outer, star_inner),
-        fill=(102, 61, 25, 80),
-    )
-    star_shadow_layer = star_shadow_layer.filter(ImageFilter.GaussianBlur(max(2, int(s(5) - s(0)))))
-    img.alpha_composite(star_shadow_layer)
-    draw.polygon(
-        star_points(star_cx, star_cy, star_outer, star_inner),
-        fill=(231, 166, 57, 255),
-        outline=(255, 240, 189, 200),
-        width=max(1, int(s(4) - s(0))),
-    )
-    draw.polygon(
-        star_points(star_cx - s(3) - s(0), star_cy - s(5) - s(0), star_outer * 0.48, star_inner * 0.48),
-        fill=(255, 220, 132, 120),
-    )
+    for cx in centers:
+        draw.text(
+            (cx, center_y),
+            "7",
+            font=font,
+            fill=(172, 13, 52, 255),
+            anchor="mm",
+            stroke_width=width(3),
+            stroke_fill=(255, 244, 218, 170),
+        )
 
-    # small three-dot marquee under the window
-    for x in (478, 512, 546):
-        r = max(2.0, s(6) - s(0))
-        draw.ellipse((s(x) - r, s(846) - r, s(x) + r, s(846) + r), fill=(250, 202, 108, 225))
+    # Three little marquee pips below the window.
+    for cx in (478, 512, 546):
+        r = s(5.5) - s(0)
+        draw.ellipse((s(cx) - r, s(850) - r, s(cx) + r, s(850) + r),
+                     fill=(250, 203, 110, 235))
 
-    # glass highlight
+    # Soft glass edge over the reels.
     glass = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     gd = ImageDraw.Draw(glass, "RGBA")
     gd.polygon(
-        [
-            (s(194), s(273)),
-            (s(372), s(273)),
-            (s(218), s(735)),
-            (s(194), s(735)),
-        ],
-        fill=(255, 255, 255, 26),
+        [(s(192), s(266)), (s(326), s(266)), (s(218), s(746)), (s(192), s(746))],
+        fill=(255, 255, 255, 22),
     )
-    gd.line((s(190), s(322), s(834), s(322)), fill=(255, 250, 238, 80), width=max(1, int(s(2) - s(0))))
+    gd.line((s(194), s(314), s(830), s(314)), fill=(255, 251, 239, 72), width=width(2))
     img.alpha_composite(glass)
 
     return img.convert("RGBA")
 
 
-def save_resized(image, size, path, background_fill=None):
+def save_resized(image, pixels, path, background_fill=None):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    resized = image.resize((size, size), Image.LANCZOS)
+    resized = image.resize((pixels, pixels), Image.LANCZOS)
     if background_fill is not None:
-        bg = Image.new("RGBA", (size, size), background_fill)
+        bg = Image.new("RGBA", (pixels, pixels), background_fill)
         bg.alpha_composite(resized)
         resized = bg
     resized.save(path, "PNG", optimize=True)
-    print(path, size)
+    print(path, pixels)
 
 
 def main():
@@ -300,8 +235,8 @@ def main():
         "mipmap-xxhdpi": 144,
         "mipmap-xxxhdpi": 192,
     }
-    for folder, px in densities.items():
-        save_resized(regular, px, os.path.join(ANDROID_RES, folder, "ic_launcher.png"))
+    for folder, pixels in densities.items():
+        save_resized(regular, pixels, os.path.join(ANDROID_RES, folder, "ic_launcher.png"))
 
     print("icon generation complete")
 

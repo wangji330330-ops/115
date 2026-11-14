@@ -67,11 +67,17 @@ public class MainActivity extends Activity {
         // 允许 file:// 仅作为本地 HTTP 服务启动失败时的兜底；页面自身没有外部内容。
         settings.setAllowFileAccess(true);
         settings.setAllowContentAccess(false);
+        // 禁止 WebView 的缩放与“自动适配”：界面始终按 CSS 像素 1:1 渲染。
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setLoadWithOverviewMode(true);
+        settings.setLoadWithOverviewMode(false);
         settings.setUseWideViewPort(true);
+        settings.setTextZoom(100);
+        // 长按不要弹出文字选择/上下文菜单，避免出现多余选中框。
+        webView.setLongClickable(false);
+        webView.setHapticFeedbackEnabled(false);
+        webView.setInitialScale(100);
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
