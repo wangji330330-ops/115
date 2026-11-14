@@ -20,7 +20,7 @@
 <meta property="og:description" content="写下今日任务，完成获得摇奖券，摇出 777 和水果好运。">
 <meta property="og:image" content="https://wangji330330-ops.github.io/115/assets/icon-512.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="assets/style.css?v=1">
+<link rel="stylesheet" href="assets/style.css?v=2">
 </head>
 <body>
 <div class="ambient" aria-hidden="true">
@@ -67,6 +67,13 @@
           <path d="M4 9.5v5h3.4L12 18V6L7.4 9.5H4Z" fill="currentColor"/>
           <path d="m16 9.5 4 5m0-5-4 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
         </svg>
+      </button>
+      <button class="sound-toggle settings-toggle" id="settingsBtn" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsLayer" title="设置">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.1" fill="none" stroke="currentColor" stroke-width="1.7"/>
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.09A1.7 1.7 0 0 0 8.9 19.35a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.65 15a1.7 1.7 0 0 0-1.56-1.03H3v-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.65h.09A1.7 1.7 0 0 0 10.12 3.1V3h4v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06a1.7 1.7 0 0 0-.34 1.88V9c.17.65.8 1.1 1.56 1.1H21v4h-.09A1.7 1.7 0 0 0 19.4 15Z" fill="none" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round"/>
+        </svg>
+        <span class="settings-newdot" id="settingsNewdot" hidden aria-label="有可用更新"></span>
       </button>
     </div>
   </header>
@@ -220,10 +227,135 @@
   </footer>
 </div>
 
+<div class="settings-layer" id="settingsLayer" hidden>
+  <div class="settings-backdrop" data-close-settings></div>
+  <section class="settings-drawer" id="settingsDrawer" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" tabindex="-1">
+    <header class="settings-head">
+      <div>
+        <p class="eyebrow">YOUR LUCKY CONTROL ROOM</p>
+        <h2 id="settingsTitle">设置</h2>
+        <p class="settings-sub">把版本、记录和保存位置握在自己手里。</p>
+      </div>
+      <button class="settings-close" id="settingsClose" type="button" aria-label="关闭设置">×</button>
+    </header>
+
+    <div class="settings-scroll" id="settingsScroll">
+      <section class="settings-section" aria-labelledby="settingsVersionHead">
+        <div class="settings-section-head">
+          <h3 id="settingsVersionHead"><span aria-hidden="true">✦</span> 版本更新</h3>
+          <span class="version-chip" id="currentVersionChip">v1.1.0</span>
+        </div>
+        <div class="update-box">
+          <div class="update-top">
+            <div>
+              <strong id="updateTitle" aria-live="polite">正在读取版本信息…</strong>
+              <p id="updateMeta">当前版本与更新内容</p>
+            </div>
+            <span class="update-badge" id="updateBadge">…</span>
+          </div>
+          <ul class="release-notes" id="releaseNotes">
+            <li>修复安卓版启动时闪退的问题</li>
+            <li>新增设置面板与应用内更新</li>
+            <li>新增数据导入、导出和保存位置</li>
+          </ul>
+          <div class="update-progress" id="updateProgress" hidden>
+            <div class="update-track"><span id="updateProgressBar"></span></div>
+            <p id="updateProgressText">正在下载更新…</p>
+          </div>
+          <div class="update-actions">
+            <button class="settings-secondary settings-check-btn" id="checkUpdateBtn" type="button">检查更新</button>
+            <button class="settings-primary" id="installUpdateBtn" type="button" hidden>下载并安装</button>
+          </div>
+          <p class="settings-note" id="updateNote">安卓版会在应用内下载更新，并调起系统安装器。</p>
+        </div>
+      </section>
+
+      <section class="settings-section" aria-labelledby="settingsInstallHead">
+        <div class="settings-section-head">
+          <h3 id="settingsInstallHead"><span aria-hidden="true">↓</span> 安装</h3>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <strong id="installTitle">安装网页版</strong>
+            <p id="installHint">添加到主屏幕后，可以像小应用一样打开。</p>
+          </div>
+          <button class="settings-secondary" id="pwaInstallBtn" type="button">安装</button>
+        </div>
+        <a class="settings-file-link" id="settingsApkLink" href="lucky-study-machine.apk" download="幸运学习机.apk">
+          <span>下载安卓安装包</span>
+          <small>APK</small>
+        </a>
+      </section>
+
+      <section class="settings-section" aria-labelledby="settingsDataHead">
+        <div class="settings-section-head">
+          <h3 id="settingsDataHead"><span aria-hidden="true">⇅</span> 数据</h3>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <strong>导出学习记录</strong>
+            <p>任务、灵感星、连胜和摇奖记录都会写进 JSON 备份。</p>
+          </div>
+          <button class="settings-secondary" id="exportBtn" type="button">导出</button>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <strong>导入学习记录</strong>
+            <p>从备份文件恢复，导入前会先显示内容摘要。</p>
+          </div>
+          <button class="settings-secondary" id="importBtn" type="button">导入</button>
+        </div>
+        <div class="settings-row settings-path-row">
+          <div class="settings-row-copy">
+            <strong>保存路径</strong>
+            <p id="savePathText">网页版由浏览器自动管理，记录保存在本机站点数据中。</p>
+          </div>
+          <button class="settings-text-btn" id="choosePathBtn" type="button" hidden>更改</button>
+        </div>
+        <p class="settings-note" id="savePathNote">换设备或清理浏览器数据前，记得先导出一份备份。</p>
+        <input id="importFile" type="file" accept=".json,application/json" hidden>
+      </section>
+
+      <section class="settings-section settings-section-about" aria-labelledby="settingsAboutHead">
+        <div class="settings-section-head">
+          <h3 id="settingsAboutHead"><span aria-hidden="true">☾</span> 关于</h3>
+        </div>
+        <p class="settings-about-copy">幸运学习机把“完成一件小事”和“摇一次奖”放在一起。没有账号、没有广告，数据只留在你自己的设备里。</p>
+        <div class="settings-row settings-danger-row">
+          <div class="settings-row-copy">
+            <strong>清空所有记录</strong>
+            <p>任务、灵感星、连胜和设置都会被清除，且不能恢复。</p>
+          </div>
+          <button class="settings-danger-btn" id="clearDataBtn" type="button">清空</button>
+        </div>
+      </section>
+
+      <footer class="settings-foot">
+        <span id="settingsBuild">v1.1.0 · 本机数据</span>
+        <button id="settingsDoneBtn" type="button">完成</button>
+      </footer>
+    </div>
+  </section>
+</div>
+
+<div class="confirm-layer" id="confirmLayer" hidden>
+  <div class="confirm-backdrop" data-confirm-cancel></div>
+  <div class="confirm-box" id="confirmBox" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmMessage" tabindex="-1">
+    <span class="confirm-mark" aria-hidden="true">!</span>
+    <p class="eyebrow">PLEASE CONFIRM</p>
+    <h3 id="confirmTitle">确认操作</h3>
+    <p class="confirm-message" id="confirmMessage"></p>
+    <div class="confirm-actions">
+      <button class="settings-secondary" id="confirmCancel" type="button">取消</button>
+      <button class="settings-primary" id="confirmOk" type="button">确认</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-host" id="toastHost" aria-live="polite" aria-atomic="false"></div>
 <p class="sr-only" id="srStatus" role="status" aria-live="polite"></p>
 <noscript><div class="noscript-note">这台老虎机需要开启 JavaScript 才能摇起来。</div></noscript>
 
-<script src="assets/app.js?v=1" defer></script>
+<script src="assets/app.js?v=2" defer></script>
 </body>
 </html>

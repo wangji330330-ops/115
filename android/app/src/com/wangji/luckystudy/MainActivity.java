@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.view.WindowManager;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -37,10 +38,13 @@ import java.util.Locale;
 public class MainActivity extends Activity {
 
     private static final int BASE_PORT = 17315;
+    private static final int IMPORT_FILE_REQUEST = 701;
     private static final String ASSET_ROOT = "www/";
     private static final String BG = "#0B0810";
 
     private WebView webView;
+    private NativeBridge nativeBridge;
+    private ValueCallback<Uri[]> fileChooserCallback;
     private ServerSocket serverSocket;
     private int port;
 
@@ -71,7 +75,35 @@ public class MainActivity extends Activity {
         settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
-        webView.setWebChromeClient(new WebChromeClient());
+        nativeBridge = new NativeBridge(this, webView);
+        webView.addJavascriptInterface(nativeBridge, "LuckyAndroid");
+
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
+                                             FileChooserParams params) {
+                if (fileChooserCallback != null) {
+                    fileChooserCallback.onReceiveValue(null);
+                }
+                fileChooserCallback = callback;
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                try {
+                    startActivityForResult(
+                            Intent.createChooser(intent, "选择学习记录备份"),
+                            IMPORT_FILE_REQUEST
+                    );
+                    return true;
+                } catch (Exception error) {
+                    fileChooserCallback = null;
+                    callback.onReceiveValue(null);
+                    return false;
+                }
+            }
+        });
+
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
@@ -268,6 +300,35 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == IMPORT_FILE_REQUEST) {
+            if (fileChooserCallback == null) return;
+            Uri[] results = null;
+            if (resultCode == RESULT_OK && data != null) {
+                if (data.getClipData() != null) {
+                    int count = data.getClipData().getItemCount();
+                    results = new Uri[count];
+                    for (int i = 0; i < count; i += 1) {
+                        results[i] = data.getClipData().getItemAt(i).getUri();
+                    }
+                } else if (data.getData() != null) {
+                    results = new Uri[]{data.getData()};
+                }
+            }
+            fileChooserCallback.onReceiveValue(results);
+            fileChooserCallback = null;
+            return;
+        }
+
+        if (nativeBridge != null
+                && nativeBridge.getDataManager().onActivityResult(requestCode, resultCode, data)) {
+            return;
+        }
+
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    @Override
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
@@ -286,12 +347,21 @@ public class MainActivity extends Activity {
             // ignore
         }
         serverSocket = null;
+        if (fileChooserCallback != null) {
+            fileChooserCallback.onReceiveValue(null);
+            fileChooserCallback = null;
+        }
         if (webView != null) {
+            webView.removeJavascriptInterface("LuckyAndroid");
             webView.stopLoading();
             webView.loadUrl("about:blank");
             webView.removeAllViews();
             webView.destroy();
             webView = null;
+        }
+        if (nativeBridge != null) {
+            nativeBridge.dispose();
+            nativeBridge = null;
         }
         super.onDestroy();
     }

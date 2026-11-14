@@ -196,8 +196,29 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
+  const APP_VERSION = '1.1.0';
+  const APP_VERSION_CODE = 2;
+  const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
+  const FALLBACK_RELEASE_NOTES = [
+    '修复安卓版启动闪退，应用现在可以正常打开',
+    '新增右上角设置：安装、数据备份与恢复、保存位置',
+    '新增应用内检查更新，下载完成后直接调起系统安装器',
+    '新增版本号、更新内容和检查更新状态',
+    '完善手机端设置面板与无障碍细节'
+  ];
+
   const params = new URLSearchParams(window.location.search);
-  const isAndroidApp = params.get('app') === '1';
+  const nativeApp = (function () {
+    try {
+      if (window.LuckyAndroid && typeof window.LuckyAndroid.getVersionName === 'function') {
+        return window.LuckyAndroid;
+      }
+    } catch (err) {
+      return null;
+    }
+    return null;
+  })();
+  const isAndroidApp = params.get('app') === '1' || !!nativeApp;
   const isDebug = params.get('debug') === '1';
 
   /* ========== 日期与存储 ========== */
@@ -611,7 +632,43 @@
     srStatus: $('#srStatus'),
     fxCanvas: $('#fxCanvas'),
     taskCard: $('.task-card'),
-    bulbBar: $('#bulbBar')
+    bulbBar: $('#bulbBar'),
+    pageShell: $('.page-shell'),
+    settingsBtn: $('#settingsBtn'),
+    settingsNewdot: $('#settingsNewdot'),
+    settingsLayer: $('#settingsLayer'),
+    settingsDrawer: $('#settingsDrawer'),
+    settingsClose: $('#settingsClose'),
+    settingsDoneBtn: $('#settingsDoneBtn'),
+    currentVersionChip: $('#currentVersionChip'),
+    settingsBuild: $('#settingsBuild'),
+    updateTitle: $('#updateTitle'),
+    updateMeta: $('#updateMeta'),
+    updateBadge: $('#updateBadge'),
+    releaseNotes: $('#releaseNotes'),
+    updateProgress: $('#updateProgress'),
+    updateProgressBar: $('#updateProgressBar'),
+    updateProgressText: $('#updateProgressText'),
+    checkUpdateBtn: $('#checkUpdateBtn'),
+    installUpdateBtn: $('#installUpdateBtn'),
+    updateNote: $('#updateNote'),
+    installTitle: $('#installTitle'),
+    installHint: $('#installHint'),
+    pwaInstallBtn: $('#pwaInstallBtn'),
+    settingsApkLink: $('#settingsApkLink'),
+    exportBtn: $('#exportBtn'),
+    importBtn: $('#importBtn'),
+    importFile: $('#importFile'),
+    savePathText: $('#savePathText'),
+    savePathNote: $('#savePathNote'),
+    choosePathBtn: $('#choosePathBtn'),
+    clearDataBtn: $('#clearDataBtn'),
+    confirmLayer: $('#confirmLayer'),
+    confirmBox: $('#confirmBox'),
+    confirmTitle: $('#confirmTitle'),
+    confirmMessage: $('#confirmMessage'),
+    confirmCancel: $('#confirmCancel'),
+    confirmOk: $('#confirmOk')
   };
 
   const reelTracks = el.reels.map(function (reel) {
@@ -624,6 +681,25 @@
   let lastQuote = '';
   let resizeTimer = 0;
   let resizedWhileSpinning = false;
+
+  let appVersionName = APP_VERSION;
+  let appVersionCode = APP_VERSION_CODE;
+  let appPlatform = isAndroidApp ? 'android' : 'web';
+  let deferredInstallPrompt = null;
+  let settingsCloseTimer = 0;
+  let updateInfo = null;
+  let updatePhase = 'idle';
+  let updateProgressValue = 0;
+  let updateErrorText = '';
+  let updateCheckedAt = 0;
+  let updateCheckIsManual = false;
+  let updateCheckTimer = 0;
+  let autoUpdateAnnounced = 0;
+  let pendingImportBackup = null;
+  let confirmResolver = null;
+  let confirmLastFocus = null;
+  let settingsLastFocus = null;
+  let exportBusy = false;
 
   /* ========== 基础 UI ========== */
   function formatNumber(n) {
@@ -865,6 +941,854 @@
     el.resultReward.textContent = '';
     clearMatches();
   }
+
+  /* ========== 设置 / 更新 / 数据备份 ========== */
+  function callNative(method) {
+    if (!nativeApp || typeof nativeApp[method] !== 'function') return undefined;
+    try {
+      return nativeApp[method].apply(nativeApp, Array.prototype.slice.call(arguments, 1));
+    } catch (err) {
+      return undefined;
+    }
+  }
+
+  function initPlatformInfo() {
+    if (nativeApp) {
+      appPlatform = 'android';
+      const nativeVersionName = callNative('getVersionName');
+      if (typeof nativeVersionName === 'string' && nativeVersionName.trim()) {
+        appVersionName = nativeVersionName.trim();
+      }
+      const nativeVersionCode = Number(callNative('getVersionCode'));
+      if (Number.isFinite(nativeVersionCode) && nativeVersionCode > 0) {
+        appVersionCode = Math.floor(nativeVersionCode);
+      }
+      document.body.classList.add('is-app');
+      document.documentElement.dataset.platform = 'android';
+      $$('a[href$=".apk"]').forEach(function (link) {
+        link.hidden = true;
+      });
+      const footerNote = $('.site-footer p:last-child');
+      if (footerNote) footerNote.textContent = '数据只保存在你的设备里 · 离线也能玩';
+    } else if (isAndroidApp) {
+      appPlatform = 'android';
+      document.body.classList.add('is-app');
+      document.documentElement.dataset.platform = 'android';
+      $$('a[href$=".apk"]').forEach(function (link) {
+        link.hidden = true;
+      });
+      const footerNote = $('.site-footer p:last-child');
+      if (footerNote) footerNote.textContent = '数据只保存在你的设备里 · 离线也能玩';
+    } else {
+      appPlatform = 'web';
+      document.documentElement.dataset.platform = 'web';
+    }
+    renderPlatformSections();
+    renderUpdatePanel();
+    refreshUpdateDot();
+  }
+
+  function isStandalone() {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || window.navigator.standalone === true;
+  }
+
+  function renderPlatformSections() {
+    el.currentVersionChip.textContent = 'v' + appVersionName;
+    el.settingsBuild.textContent = 'v' + appVersionName + ' · ' + (appPlatform === 'android' ? '安卓版' : '网页版');
+    renderInstallSection();
+    renderSavePath();
+  }
+
+  function renderInstallSection() {
+    if (!el.installTitle) return;
+    if (appPlatform === 'android') {
+      el.installTitle.textContent = '已安装安卓版';
+      el.installHint.textContent = '当前版本 v' + appVersionName + '，更新可在上方完成，不用再去文件管理器找安装包。';
+      el.pwaInstallBtn.hidden = true;
+      el.settingsApkLink.hidden = true;
+      return;
+    }
+
+    el.settingsApkLink.hidden = false;
+    if (isStandalone()) {
+      el.installTitle.textContent = '已作为应用运行';
+      el.installHint.textContent = '你现在打开的已经是主屏幕应用，记录会继续保存在本机。';
+      el.pwaInstallBtn.hidden = true;
+      return;
+    }
+
+    el.installTitle.textContent = deferredInstallPrompt ? '安装到主屏幕' : '安装网页版';
+    el.installHint.textContent = deferredInstallPrompt
+      ? '安装后可像普通 App 一样打开，核心页面离线也能用。'
+      : '打开浏览器菜单，选择“添加到主屏幕”或“安装应用”。';
+    el.pwaInstallBtn.textContent = deferredInstallPrompt ? '安装' : '方法';
+    el.pwaInstallBtn.hidden = false;
+  }
+
+  function renderSavePath() {
+    if (!el.savePathText) return;
+    if (appPlatform === 'android' && nativeApp && typeof nativeApp.getSavePath === 'function') {
+      const savedPath = callNative('getSavePath');
+      el.savePathText.textContent = savedPath || '尚未选择 · 导出时会打开系统保存面板';
+      el.savePathText.className = 'path-value';
+      el.choosePathBtn.hidden = false;
+      el.savePathNote.textContent = '导出的 JSON 会保存到所选文件夹；没有选择时会打开系统保存面板。';
+    } else {
+      el.savePathText.textContent = '浏览器自动管理，记录保存在本机站点数据中；导出文件会进入浏览器下载目录。';
+      el.savePathText.className = '';
+      el.choosePathBtn.hidden = true;
+      el.savePathNote.textContent = '换设备或清理浏览器数据前，记得先导出一份备份。';
+    }
+  }
+
+  function setReleaseNotes(notes) {
+    if (!el.releaseNotes) return;
+    while (el.releaseNotes.firstChild) el.releaseNotes.removeChild(el.releaseNotes.firstChild);
+    const list = Array.isArray(notes) && notes.length ? notes : FALLBACK_RELEASE_NOTES;
+    list.slice(0, 10).forEach(function (note) {
+      const li = document.createElement('li');
+      li.textContent = String(note);
+      el.releaseNotes.appendChild(li);
+    });
+  }
+
+  function formatVersion(v) {
+    return 'v' + String(v || '').replace(/^v/i, '');
+  }
+
+  function setUpdateBadge(label, modifier) {
+    el.updateBadge.textContent = label;
+    el.updateBadge.className = 'update-badge' + (modifier ? ' is-' + modifier : '');
+  }
+
+  function checkedTimeLabel() {
+    if (!updateCheckedAt) return '';
+    return ' · 上次检查 ' + formatTime(updateCheckedAt);
+  }
+
+  function refreshUpdateDot() {
+    const available = !!(updateInfo && Number(updateInfo.versionCode) > appVersionCode);
+    el.settingsNewdot.hidden = !available;
+    el.settingsBtn.setAttribute('aria-label', available ? '打开设置，有可用更新' : '打开设置');
+    el.settingsBtn.title = available ? '设置 · 有可用更新' : '设置';
+  }
+
+  function setUpdateProgress(percent, text) {
+    updateProgressValue = clamp(Number(percent) || 0, 0, 100);
+    el.updateProgress.hidden = false;
+    el.updateProgressBar.style.width = updateProgressValue + '%';
+    el.updateProgressText.textContent = text || ('正在下载 ' + Math.round(updateProgressValue) + '%');
+  }
+
+  function renderUpdatePanel() {
+    if (!el.updateTitle) return;
+    el.currentVersionChip.textContent = 'v' + appVersionName;
+    el.settingsBuild.textContent = 'v' + appVersionName + ' · ' + (appPlatform === 'android' ? '安卓版' : '网页版');
+    el.updateProgress.hidden = true;
+    el.installUpdateBtn.hidden = true;
+    el.installUpdateBtn.disabled = false;
+    el.checkUpdateBtn.disabled = false;
+    el.checkUpdateBtn.textContent = '检查更新';
+    el.updateBadge.className = 'update-badge';
+    el.updateNote.textContent = appPlatform === 'android'
+      ? '更新会在应用内下载并校验，之后调起系统安装器；Android 会再弹出一次安装确认，这是系统安全限制。'
+      : '网页版刷新后会载入最新内容，离线缓存也会随之更新。';
+
+    const available = !!(updateInfo && Number(updateInfo.versionCode) > appVersionCode);
+    const latestName = updateInfo && updateInfo.versionName ? formatVersion(updateInfo.versionName) : '';
+
+    switch (updatePhase) {
+      case 'checking':
+        el.updateTitle.textContent = '正在检查新版本…';
+        el.updateMeta.textContent = '当前版本 ' + formatVersion(appVersionName);
+        setUpdateBadge('检查中', '');
+        el.checkUpdateBtn.disabled = true;
+        el.checkUpdateBtn.textContent = '检查中…';
+        setReleaseNotes(updateInfo ? updateInfo.notes : FALLBACK_RELEASE_NOTES);
+        break;
+
+      case 'available':
+        el.updateTitle.textContent = '发现新版本 ' + latestName;
+        el.updateMeta.textContent = '当前 ' + formatVersion(appVersionName) + ' → 最新 ' + latestName + checkedTimeLabel();
+        setUpdateBadge('可更新', 'new');
+        setReleaseNotes(updateInfo.notes);
+        el.checkUpdateBtn.textContent = '重新检查';
+        el.installUpdateBtn.hidden = false;
+        el.installUpdateBtn.disabled = false;
+        el.installUpdateBtn.textContent = appPlatform === 'android' ? '下载并安装' : '刷新到最新版';
+        el.updateNote.textContent = appPlatform === 'android'
+          ? '点一次按钮，应用内下载完成后会自动跳到系统安装界面，不需要离开应用去文件管理器找 APK。'
+          : '刷新页面即可载入最新网页版本。';
+        break;
+
+      case 'downloading':
+        el.updateTitle.textContent = '正在下载 ' + latestName;
+        el.updateMeta.textContent = '应用内下载中，请保持应用在前台';
+        setUpdateBadge('下载中', 'new');
+        el.checkUpdateBtn.disabled = true;
+        el.installUpdateBtn.hidden = false;
+        el.installUpdateBtn.disabled = true;
+        el.installUpdateBtn.textContent = '正在下载…';
+        setReleaseNotes(updateInfo ? updateInfo.notes : FALLBACK_RELEASE_NOTES);
+        setUpdateProgress(updateProgressValue, '已下载 ' + Math.round(updateProgressValue) + '%');
+        el.updateNote.textContent = '下载完成后会自动校验安装包，并打开系统安装器。';
+        break;
+
+      case 'verifying':
+        el.updateTitle.textContent = '正在校验安装包…';
+        el.updateMeta.textContent = '校验通过后就会打开系统安装界面';
+        setUpdateBadge('校验中', 'new');
+        el.checkUpdateBtn.disabled = true;
+        el.installUpdateBtn.hidden = false;
+        el.installUpdateBtn.disabled = true;
+        el.installUpdateBtn.textContent = '正在校验…';
+        setReleaseNotes(updateInfo ? updateInfo.notes : FALLBACK_RELEASE_NOTES);
+        setUpdateProgress(100, '完整性校验中…');
+        break;
+
+      case 'permission-needed':
+        el.updateTitle.textContent = '需要安装权限';
+        el.updateMeta.textContent = 'Android 要求允许一次“安装未知应用”';
+        setUpdateBadge('待授权', 'new');
+        setReleaseNotes(updateInfo ? updateInfo.notes : FALLBACK_RELEASE_NOTES);
+        el.installUpdateBtn.hidden = false;
+        el.installUpdateBtn.disabled = false;
+        el.installUpdateBtn.textContent = '我已允许，继续';
+        el.checkUpdateBtn.disabled = true;
+        el.updateNote.textContent = '已在系统设置中打开“安装未知应用”页面。允许“幸运学习机”安装应用后，回到这里点“我已允许，继续”。';
+        break;
+
+      case 'installing':
+        el.updateTitle.textContent = '正在打开系统安装器';
+        el.updateMeta.textContent = '下载与校验已完成';
+        setUpdateBadge('安装', 'new');
+        el.checkUpdateBtn.disabled = true;
+        el.installUpdateBtn.hidden = true;
+        setReleaseNotes(updateInfo ? updateInfo.notes : FALLBACK_RELEASE_NOTES);
+        setUpdateProgress(100, '请在系统弹窗里确认安装…');
+        el.updateNote.textContent = '系统安装器已经打开，确认安装后新版本会覆盖旧版，学习记录会保留。';
+        break;
+
+      case 'latest':
+        el.updateTitle.textContent = '已是最新版本';
+        el.updateMeta.textContent = '当前 ' + formatVersion(appVersionName) + checkedTimeLabel();
+        setUpdateBadge('最新', 'latest');
+        setReleaseNotes(updateInfo ? updateInfo.notes : FALLBACK_RELEASE_NOTES);
+        el.checkUpdateBtn.textContent = '重新检查';
+        break;
+
+      case 'error':
+        el.updateTitle.textContent = '这次检查没有完成';
+        el.updateMeta.textContent = '当前 ' + formatVersion(appVersionName);
+        setUpdateBadge('失败', 'error');
+        setReleaseNotes(updateInfo ? updateInfo.notes : FALLBACK_RELEASE_NOTES);
+        el.updateNote.textContent = updateErrorText || '请检查网络后再试一次。';
+        if (updateInfo && available && appPlatform === 'android') {
+          el.installUpdateBtn.hidden = false;
+          el.installUpdateBtn.disabled = false;
+          el.installUpdateBtn.textContent = '重试安装';
+        }
+        break;
+
+      default:
+        el.updateTitle.textContent = '当前版本 ' + formatVersion(appVersionName);
+        el.updateMeta.textContent = appPlatform === 'android' ? '安卓版 · 可以检查是否有新版本' : '网页版 · 可以检查线上最新内容';
+        setUpdateBadge('本机', '');
+        setReleaseNotes(FALLBACK_RELEASE_NOTES);
+        break;
+    }
+    refreshUpdateDot();
+  }
+
+  function normalizeUpdate(data) {
+    if (!data || typeof data !== 'object') return null;
+    const versionCode = Number(data.versionCode != null ? data.versionCode : data.latestVersionCode);
+    const versionNameRaw = data.versionName || data.latestVersionName;
+    if (!Number.isFinite(versionCode) || versionCode <= 0 || !versionNameRaw) return null;
+    let apkUrl = '';
+    if (typeof data.apkUrl === 'string' && data.apkUrl) {
+      try {
+        apkUrl = new URL(data.apkUrl, UPDATE_PAGE_URL).href;
+      } catch (err) {
+        apkUrl = data.apkUrl;
+      }
+    }
+    return {
+      versionCode: Math.floor(versionCode),
+      versionName: String(versionNameRaw),
+      notes: Array.isArray(data.notes) ? data.notes.map(String) : FALLBACK_RELEASE_NOTES.slice(),
+      publishedAt: typeof data.publishedAt === 'string' ? data.publishedAt : '',
+      apkUrl: apkUrl,
+      sha256: typeof data.sha256 === 'string' ? data.sha256 : '',
+      size: Number(data.size) || 0
+    };
+  }
+
+  function checkForUpdates(manual) {
+    if (updatePhase === 'checking' || updatePhase === 'downloading' || updatePhase === 'verifying' || updatePhase === 'installing') {
+      return;
+    }
+    updateCheckIsManual = !!manual;
+    updateErrorText = '';
+    updatePhase = 'checking';
+    renderUpdatePanel();
+
+    if (nativeApp) {
+      window.clearTimeout(updateCheckTimer);
+      updateCheckTimer = window.setTimeout(function () {
+        if (updatePhase === 'checking') {
+          updatePhase = 'error';
+          updateErrorText = '检查更新超时，请确认网络后再试。';
+          renderUpdatePanel();
+          if (updateCheckIsManual) showToast('检查更新超时了，稍后再试试。', 'warn', 3300);
+        }
+      }, 20000);
+      const started = callNative('checkForUpdate');
+      if (started === undefined && typeof nativeApp.checkForUpdate !== 'function') {
+        window.clearTimeout(updateCheckTimer);
+        updatePhase = 'error';
+        updateErrorText = '当前安装包还不支持应用内更新，请手动下载新版。';
+        renderUpdatePanel();
+      }
+      return;
+    }
+
+    const updateUrl = new URL('update.json?ts=' + Date.now(), window.location.href).href;
+    fetch(updateUrl, { cache: 'no-store' })
+      .then(function (response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      })
+      .then(function (raw) {
+        const info = normalizeUpdate(raw);
+        if (!info) throw new Error('更新清单格式不正确');
+        updateInfo = info;
+        updateCheckedAt = Date.now();
+        updatePhase = info.versionCode > appVersionCode ? 'available' : 'latest';
+        renderUpdatePanel();
+        if (updateCheckIsManual) {
+          showToast(
+            updatePhase === 'available'
+              ? '发现新版本 ' + formatVersion(info.versionName) + '。'
+              : '已经是最新版本 ' + formatVersion(appVersionName) + '。',
+            updatePhase === 'available' ? 'win' : 'info',
+            3200
+          );
+        }
+      })
+      .catch(function (err) {
+        updatePhase = 'error';
+        updateErrorText = window.location.protocol === 'file:'
+          ? '本地预览无法联网读取更新清单，部署到线上后即可使用。'
+          : '暂时无法读取更新清单，请检查网络后再试。';
+        renderUpdatePanel();
+        if (updateCheckIsManual) showToast(updateErrorText, 'warn', 3800);
+      });
+  }
+
+  function beginUpdateInstall() {
+    if (!updateInfo) return;
+    if (updatePhase !== 'available' && updatePhase !== 'error' && updatePhase !== 'permission-needed') return;
+
+    if (!nativeApp) {
+      window.location.reload();
+      return;
+    }
+
+    if (typeof nativeApp.downloadAndInstallUpdate !== 'function') {
+      updatePhase = 'error';
+      updateErrorText = '这个安装包没有内置更新器，请下载新版 APK 覆盖安装。';
+      renderUpdatePanel();
+      return;
+    }
+
+    updateErrorText = '';
+    updateProgressValue = 0;
+    updatePhase = 'downloading';
+    renderUpdatePanel();
+    const started = callNative('downloadAndInstallUpdate');
+    if (started === undefined && typeof nativeApp.downloadAndInstallUpdate !== 'function') {
+      updatePhase = 'error';
+      updateErrorText = '无法启动应用内更新，请手动下载新版。';
+      renderUpdatePanel();
+    }
+  }
+
+  function handleNativeUpdateEvent(data) {
+    window.clearTimeout(updateCheckTimer);
+    if (data.currentVersionName) appVersionName = String(data.currentVersionName);
+    if (Number(data.currentVersionCode) > 0) appVersionCode = Math.floor(Number(data.currentVersionCode));
+
+    if (data.status === 'available' || data.status === 'latest') {
+      const normalized = normalizeUpdate(data);
+      if (!normalized) {
+        updatePhase = 'error';
+        updateErrorText = '更新清单缺少版本信息。';
+        renderUpdatePanel();
+        return;
+      }
+      updateInfo = normalized;
+      updateCheckedAt = Date.now();
+      updatePhase = normalized.versionCode > appVersionCode ? 'available' : 'latest';
+      renderUpdatePanel();
+
+      if (updateCheckIsManual) {
+        showToast(
+          updatePhase === 'available'
+            ? '发现新版本 ' + formatVersion(normalized.versionName) + '。'
+            : '已经是最新版本 ' + formatVersion(appVersionName) + '。',
+          updatePhase === 'available' ? 'win' : 'info',
+          3200
+        );
+      } else if (updatePhase === 'available' && el.settingsLayer.hidden && autoUpdateAnnounced !== normalized.versionCode) {
+        autoUpdateAnnounced = normalized.versionCode;
+        showToast('发现新版本 ' + formatVersion(normalized.versionName) + '，点右上角齿轮更新。', 'win', 4300);
+      }
+      return;
+    }
+
+    if (data.status === 'downloading') {
+      updatePhase = 'downloading';
+      updateProgressValue = clamp(Number(data.progress) || 0, 0, 100);
+      renderUpdatePanel();
+      return;
+    }
+
+    if (data.status === 'verifying') {
+      updatePhase = 'verifying';
+      renderUpdatePanel();
+      return;
+    }
+
+    if (data.status === 'permission-needed') {
+      updatePhase = 'permission-needed';
+      renderUpdatePanel();
+      return;
+    }
+
+    if (data.status === 'installing') {
+      updatePhase = 'installing';
+      renderUpdatePanel();
+      showToast('已打开系统安装器，确认一下就完成更新。', 'info', 3800);
+      return;
+    }
+
+    if (data.status === 'error') {
+      updatePhase = 'error';
+      updateErrorText = data.error || '下载或安装没有完成。';
+      renderUpdatePanel();
+      showToast(updateErrorText, 'warn', 4200);
+    }
+  }
+
+  function handleNativeEvent(raw) {
+    let data = raw;
+    if (typeof raw === 'string') {
+      try {
+        data = JSON.parse(raw);
+      } catch (err) {
+        return;
+      }
+    }
+    if (!data || typeof data !== 'object') return;
+
+    if (data.kind === 'update') {
+      handleNativeUpdateEvent(data);
+    } else if (data.kind === 'savePath') {
+      if (typeof data.path === 'string' && data.path) {
+        el.savePathText.textContent = data.path;
+        el.savePathText.className = 'path-value';
+        showToast('保存位置已改为：' + data.path, 'win', 3500);
+      } else if (data.error) {
+        showToast(data.error, 'warn', 3600);
+      }
+    } else if (data.kind === 'export') {
+      exportBusy = false;
+      el.exportBtn.disabled = false;
+      if (data.status === 'saved') {
+        showToast('备份已导出' + (data.fileName ? '：' + data.fileName : '。'), 'win', 3600);
+      } else {
+        showToast('导出没有完成：' + (data.error || '请换一个位置再试。'), 'warn', 4200);
+      }
+    }
+  }
+
+  function openSettings() {
+    if (!el.settingsLayer || !el.settingsLayer.hidden) return;
+    settingsLastFocus = document.activeElement;
+    window.clearTimeout(settingsCloseTimer);
+    el.settingsLayer.hidden = false;
+    el.settingsBtn.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('settings-open');
+    if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = true;
+    renderPlatformSections();
+    renderUpdatePanel();
+    window.requestAnimationFrame(function () {
+      el.settingsLayer.classList.add('is-open');
+      el.settingsClose.focus({ preventScroll: true });
+    });
+
+    if (updatePhase !== 'checking' && updatePhase !== 'downloading' && updatePhase !== 'verifying' && updatePhase !== 'installing') {
+      if (!updateInfo || Date.now() - updateCheckedAt > 60000) {
+        window.setTimeout(function () {
+          if (!el.settingsLayer.hidden) checkForUpdates(false);
+        }, 180);
+      }
+    }
+  }
+
+  function closeSettings() {
+    if (!el.settingsLayer || el.settingsLayer.hidden) return;
+    if (!el.confirmLayer.hidden) settleConfirm(false);
+    el.settingsLayer.classList.remove('is-open');
+    el.settingsBtn.setAttribute('aria-expanded', 'false');
+    window.clearTimeout(settingsCloseTimer);
+    settingsCloseTimer = window.setTimeout(function () {
+      if (el.settingsLayer.classList.contains('is-open')) return;
+      el.settingsLayer.hidden = true;
+      document.body.classList.remove('settings-open');
+      if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = false;
+      const target = settingsLastFocus && typeof settingsLastFocus.focus === 'function'
+        ? settingsLastFocus
+        : el.settingsBtn;
+      if (target && document.contains(target)) target.focus({ preventScroll: true });
+    }, 330);
+  }
+
+  function focusableIn(container) {
+    return $$('button:not([disabled]), a[href], input:not([disabled]):not([type="hidden"]), [tabindex]:not([tabindex="-1"])', container)
+      .filter(function (node) {
+        return !node.hidden && node.offsetParent !== null;
+      });
+  }
+
+  function handleSettingsKeydown(event) {
+    const confirmOpen = el.confirmLayer && !el.confirmLayer.hidden;
+    const settingsOpen = el.settingsLayer && !el.settingsLayer.hidden;
+    if (!confirmOpen && !settingsOpen) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (confirmOpen) settleConfirm(false);
+      else closeSettings();
+      return;
+    }
+
+    if (event.key !== 'Tab') return;
+    const scope = confirmOpen ? el.confirmBox : el.settingsDrawer;
+    if (!scope) return;
+    const nodes = focusableIn(scope);
+    if (!nodes.length) return;
+    const first = nodes[0];
+    const last = nodes[nodes.length - 1];
+    if (event.shiftKey) {
+      if (document.activeElement === first || !scope.contains(document.activeElement)) {
+        event.preventDefault();
+        last.focus();
+      }
+    } else if (document.activeElement === last || !scope.contains(document.activeElement)) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function showConfirm(options) {
+    const opts = options || {};
+    return new Promise(function (resolve) {
+      if (confirmResolver) {
+        const previous = confirmResolver;
+        confirmResolver = null;
+        previous(false);
+      }
+      confirmResolver = resolve;
+      confirmLastFocus = document.activeElement;
+      el.confirmTitle.textContent = opts.title || '确认操作';
+      el.confirmMessage.textContent = opts.message || '';
+      el.confirmOk.textContent = opts.confirmLabel || '确认';
+      el.confirmCancel.textContent = opts.cancelLabel || '取消';
+      el.confirmBox.classList.toggle('is-danger', !!opts.danger);
+      el.confirmLayer.hidden = false;
+      window.requestAnimationFrame(function () {
+        el.confirmLayer.classList.add('is-open');
+        el.confirmOk.focus({ preventScroll: true });
+      });
+    });
+  }
+
+  function settleConfirm(value) {
+    if (!el.confirmLayer || el.confirmLayer.hidden) return;
+    const resolver = confirmResolver;
+    confirmResolver = null;
+    el.confirmLayer.classList.remove('is-open');
+    window.setTimeout(function () {
+      el.confirmLayer.hidden = true;
+      const target = confirmLastFocus;
+      if (target && document.contains(target) && !el.settingsLayer.hidden) {
+        target.focus({ preventScroll: true });
+      } else if (!el.settingsLayer.hidden) {
+        el.settingsClose.focus({ preventScroll: true });
+      }
+    }, 230);
+    if (resolver) resolver(!!value);
+  }
+
+  function backupPayload() {
+    return {
+      app: 'lucky-study-machine',
+      schema: 1,
+      version: appVersionName,
+      exportedAt: new Date().toISOString(),
+      data: JSON.parse(JSON.stringify(state))
+    };
+  }
+
+  function backupFileName() {
+    return 'lucky-study-backup-' + dateKey() + '.json';
+  }
+
+  function downloadBackupString(filename, json) {
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(function () { URL.revokeObjectURL(url); }, 1800);
+  }
+
+  function exportLearningData() {
+    if (exportBusy) return;
+    exportBusy = true;
+    el.exportBtn.disabled = true;
+    const filename = backupFileName();
+    const json = JSON.stringify(backupPayload(), null, 2);
+
+    if (nativeApp && typeof nativeApp.exportData === 'function') {
+      try {
+        nativeApp.exportData(filename, json);
+      } catch (err) {
+        exportBusy = false;
+        el.exportBtn.disabled = false;
+        showToast('没有打开保存面板，请稍后再试。', 'warn', 3600);
+        return;
+      }
+      showToast('正在导出学习记录备份…', 'info', 3000);
+      window.setTimeout(function () {
+        if (exportBusy) {
+          exportBusy = false;
+          el.exportBtn.disabled = false;
+        }
+      }, 45000);
+      return;
+    }
+
+    try {
+      downloadBackupString(filename, json);
+      showToast('备份已下载：' + filename, 'win', 3600);
+    } catch (err) {
+      showToast('浏览器没有允许下载，请再试一次。', 'warn', 3600);
+    }
+    window.setTimeout(function () {
+      exportBusy = false;
+      el.exportBtn.disabled = false;
+    }, 900);
+  }
+
+  function parseBackup(text) {
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      throw new Error('这不是有效的 JSON 文件。');
+    }
+    let data = parsed;
+    if (parsed && parsed.app === 'lucky-study-machine' && parsed.data) {
+      data = parsed.data;
+    } else if (parsed && parsed.data && typeof parsed.data === 'object' && Array.isArray(parsed.data.tasks)) {
+      data = parsed.data;
+    }
+    if (!data || typeof data !== 'object' || !Array.isArray(data.tasks)) {
+      throw new Error('这不是幸运学习机的备份文件。');
+    }
+
+    const tasks = sanitizeTasks(data.tasks);
+    const tickets = Number.isFinite(Number(data.tickets))
+      ? clamp(Math.floor(Number(data.tickets)), 0, MAX_TICKETS)
+      : START_TICKETS;
+    const spins = Number.isFinite(Number(data.spins))
+      ? Math.max(0, Math.floor(Number(data.spins)))
+      : 0;
+    const totalStars = Number.isFinite(Number(data.totalStars))
+      ? Math.max(0, Math.floor(Number(data.totalStars)))
+      : 0;
+    const date = typeof data.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.date)
+      ? data.date
+      : '未知日期';
+    return {
+      tasks: tasks,
+      tickets: tickets,
+      spins: spins,
+      totalStars: totalStars,
+      history: sanitizeHistory(data.history),
+      sound: data.sound !== false,
+      date: date,
+      exportedAt: parsed && parsed.exportedAt ? String(parsed.exportedAt) : ''
+    };
+  }
+
+  function applyImportedBackup(backup) {
+    const sameDay = backup.date === dateKey();
+    state.date = dateKey();
+    state.tasks = sameDay ? backup.tasks : [];
+    state.tickets = sameDay ? backup.tickets : START_TICKETS;
+    state.spins = sameDay ? backup.spins : 0;
+    state.totalStars = backup.totalStars;
+    state.history = backup.history;
+    state.sound = backup.sound;
+    audio.setEnabled(state.sound);
+    renderSoundToggle();
+    saveState();
+    renderDate();
+    renderTasks({ scrollTop: 0 });
+    renderTickets();
+    renderSpinCounter();
+    renderHeaderStats();
+    renderPlatformSections();
+    resetResultCard();
+    const done = backup.tasks.filter(function (task) { return task.done; }).length;
+    showToast(
+      sameDay
+        ? '数据已恢复：' + backup.tasks.length + ' 个任务，完成 ' + done + ' 个。'
+        : '备份来自 ' + backup.date + '，任务已按新的一天重置，累计灵感和历史已恢复。',
+      'win',
+      4600
+    );
+  }
+
+  function handleImportFile(file) {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('备份文件太大了，无法读取。', 'warn', 3400);
+      return;
+    }
+    const finish = function (text) {
+      let backup;
+      try {
+        backup = parseBackup(text);
+      } catch (err) {
+        showToast(err.message || '备份文件格式不正确。', 'warn', 3800);
+        return;
+      }
+      pendingImportBackup = backup;
+      const sameDay = backup.date === dateKey();
+      const done = backup.tasks.filter(function (task) { return task.done; }).length;
+      let message = '备份日期：' + backup.date
+        + '\n任务：' + backup.tasks.length + ' 项（完成 ' + done + ' 项）'
+        + '\n灵感星：' + formatNumber(backup.totalStars) + ' · 摇奖券：' + backup.tickets
+        + '\n\n导入会覆盖当前的任务和记录。';
+      if (!sameDay) {
+        message += '\n\n这份备份不是今天的：导入后任务和摇奖券会按新的一天重置，累计灵感和历史记录仍会恢复。';
+      }
+      showConfirm({
+        title: '导入这份学习记录？',
+        message: message,
+        confirmLabel: '导入',
+        cancelLabel: '先不导入'
+      }).then(function (ok) {
+        if (!ok) {
+          pendingImportBackup = null;
+          return;
+        }
+        applyImportedBackup(backup);
+        pendingImportBackup = null;
+        window.setTimeout(closeSettings, 260);
+      });
+    };
+
+    if (typeof file.text === 'function') {
+      file.text().then(finish).catch(function () {
+        showToast('读取备份文件失败，请再试一次。', 'warn', 3600);
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function () { finish(String(reader.result || '')); };
+    reader.onerror = function () { showToast('读取备份文件失败，请再试一次。', 'warn', 3600); };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  async function clearAllLearningData() {
+    const ok = await showConfirm({
+      title: '清空全部学习记录？',
+      message: '任务清单、灵感星、连续天数和历史记录都会被删除，且无法恢复。\n如果还没备份，建议先导出。',
+      confirmLabel: '确认清空',
+      danger: true
+    });
+    if (!ok) return;
+    state.date = dateKey();
+    state.tasks = [];
+    state.tickets = START_TICKETS;
+    state.spins = 0;
+    state.totalStars = 0;
+    state.history = {};
+    saveState();
+    renderDate();
+    renderTasks({ scrollTop: 0 });
+    renderTickets();
+    renderSpinCounter();
+    renderHeaderStats();
+    resetResultCard();
+    showToast('已清空所有学习数据，今天可以从头开始。', 'win', 3800);
+    closeSettings();
+  }
+
+  async function chooseSavePath() {
+    if (!nativeApp || typeof nativeApp.chooseSaveFolder !== 'function') {
+      showToast('当前环境不支持更改保存位置，导出时由浏览器决定下载目录。', 'info', 3600);
+      return;
+    }
+    try {
+      nativeApp.chooseSaveFolder();
+    } catch (err) {
+      showToast('没有打开文件夹选择器，请稍后再试。', 'warn', 3400);
+      return;
+    }
+    showToast('请选择一个用来存放备份 JSON 的文件夹。', 'info', 3200);
+  }
+
+  async function installWebApp() {
+    if (appPlatform === 'android') return;
+    if (isStandalone()) {
+      showToast('已经在主屏幕应用模式里啦。', 'info', 2800);
+      return;
+    }
+    if (deferredInstallPrompt) {
+      const prompt = deferredInstallPrompt;
+      deferredInstallPrompt = null;
+      try {
+        prompt.prompt();
+        const result = await prompt.userChoice;
+        if (result && result.outcome === 'accepted') {
+          showToast('正在安装，请稍等。', 'win', 3000);
+        } else {
+          showToast('安装取消了，随时可以在设置里再试。', 'info', 2800);
+        }
+      } catch (err) {
+        showToast('浏览器没有完成安装，请从浏览器菜单手动添加。', 'warn', 3200);
+      }
+      renderInstallSection();
+      return;
+    }
+    showToast('打开浏览器菜单，选择“添加到主屏幕”或“安装应用”。', 'info', 4500);
+  }
+
+  window.LuckyNative = {
+    onEvent: handleNativeEvent
+  };
 
   /* ========== 老虎机轮子 ========== */
   function weightedSymbolId() {
@@ -1237,6 +2161,8 @@
 
   function startSpin() {
     if (spinning) return;
+    if (el.settingsLayer && !el.settingsLayer.hidden) return;
+    if (el.confirmLayer && !el.confirmLayer.hidden) return;
     ensureToday(true);
     if (state.tickets <= 0) {
       audio.error();
@@ -1667,8 +2593,12 @@
 
     el.soundToggle.addEventListener('click', toggleSound);
 
+    document.addEventListener('keydown', handleSettingsKeydown);
+
     document.addEventListener('keydown', function (event) {
       if (event.code !== 'Space' && event.key !== ' ') return;
+      if (el.settingsLayer && !el.settingsLayer.hidden) return;
+      if (el.confirmLayer && !el.confirmLayer.hidden) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const active = document.activeElement;
       const tag = active ? active.tagName : '';
@@ -1712,14 +2642,43 @@
       if (state.sound) audio.unlock();
     }, { once: true, passive: true });
 
-    if (isAndroidApp) {
-      document.body.classList.add('is-app');
-      $$('a[href$=".apk"]').forEach(function (link) {
-        link.hidden = true;
-      });
-      const footerNote = $('.site-footer p:last-child');
-      if (footerNote) footerNote.textContent = '数据只保存在你的设备里 · 离线也能玩';
-    }
+    el.settingsBtn.addEventListener('click', openSettings);
+    el.settingsClose.addEventListener('click', closeSettings);
+    el.settingsDoneBtn.addEventListener('click', closeSettings);
+    $$('[data-close-settings]').forEach(function (node) {
+      node.addEventListener('click', closeSettings);
+    });
+    el.checkUpdateBtn.addEventListener('click', function () { checkForUpdates(true); });
+    el.installUpdateBtn.addEventListener('click', beginUpdateInstall);
+    el.exportBtn.addEventListener('click', exportLearningData);
+    el.importBtn.addEventListener('click', function () {
+      el.importFile.value = '';
+      el.importFile.click();
+    });
+    el.importFile.addEventListener('change', function () {
+      const file = el.importFile.files && el.importFile.files[0];
+      if (file) handleImportFile(file);
+    });
+    el.choosePathBtn.addEventListener('click', chooseSavePath);
+    el.clearDataBtn.addEventListener('click', clearAllLearningData);
+    el.pwaInstallBtn.addEventListener('click', installWebApp);
+    el.confirmCancel.addEventListener('click', function () { settleConfirm(false); });
+    el.confirmOk.addEventListener('click', function () { settleConfirm(true); });
+    $$('[data-confirm-cancel]').forEach(function (node) {
+      node.addEventListener('click', function () { settleConfirm(false); });
+    });
+
+    window.addEventListener('beforeinstallprompt', function (event) {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      if (el.settingsLayer && !el.settingsLayer.hidden) renderInstallSection();
+    });
+
+    window.addEventListener('appinstalled', function () {
+      deferredInstallPrompt = null;
+      showToast('网页版已经安装到主屏幕。', 'win', 3200);
+      renderInstallSection();
+    });
   }
 
   /* ========== 启动 ========== */
@@ -1753,7 +2712,17 @@
       getState: function () {
         return JSON.parse(JSON.stringify(state));
       },
-      spin: startSpin
+      spin: startSpin,
+      openSettings: openSettings,
+      closeSettings: closeSettings,
+      checkUpdate: function () { checkForUpdates(true); },
+      getUpdateInfo: function () { return updateInfo ? JSON.parse(JSON.stringify(updateInfo)) : null; },
+      getVersion: function () { return { name: appVersionName, code: appVersionCode, platform: appPlatform }; },
+      importBackupText: function (text) {
+        const backup = parseBackup(text);
+        applyImportedBackup(backup);
+        return true;
+      }
     };
   }
 
@@ -1768,6 +2737,7 @@
   }
 
   function init() {
+    initPlatformInfo();
     renderBulbs();
     renderDate();
     renderSoundToggle();
@@ -1790,6 +2760,12 @@
       window.setTimeout(function () {
         showToast('新的一天到啦，5 张摇奖券已经到账。', 'win', 3200);
       }, 700);
+    }
+
+    if (nativeApp) {
+      window.setTimeout(function () {
+        if (updatePhase === 'idle') checkForUpdates(false);
+      }, 2600);
     }
   }
 

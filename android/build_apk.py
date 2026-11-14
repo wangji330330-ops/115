@@ -45,8 +45,8 @@ APP_SRC = BASE / "app"
 SIGNING_REPO = BASE / ".signing"
 APK_NAME = "lucky-study-machine.apk"
 PACKAGE = "com.wangji.luckystudy"
-VERSION_CODE = "1"
-VERSION_NAME = "1.0.0"
+VERSION_CODE = "2"
+VERSION_NAME = "1.1.0"
 MIN_SDK = "24"
 TARGET_SDK = "34"
 ALIAS = "luckystudy"
@@ -329,8 +329,10 @@ def build() -> int:
     )
     log("   base.apk = %.2f MB" % (base_apk.stat().st_size / 1048576.0))
 
-    java_source = STAGE_APP / "src" / "com" / "wangji" / "luckystudy" / "MainActivity.java"
+    java_sources = sorted(str(path) for path in (STAGE_APP / "src").rglob("*.java"))
     r_java = gen / "com" / "wangji" / "luckystudy" / "R.java"
+    if not java_sources:
+        fail("no Java sources found")
     if not r_java.is_file():
         fail("aapt2 did not generate R.java")
     run(
@@ -346,19 +348,18 @@ def build() -> int:
             str(android_jar),
             "-d",
             str(classes),
-            str(java_source),
+            *java_sources,
             str(r_java),
         ],
-        "compile Java",
+        "compile Java (%d files)" % len(java_sources),
     )
 
-    class_files = [
-        str(classes / "com" / "wangji" / "luckystudy" / "MainActivity.class"),
-        str(classes / "com" / "wangji" / "luckystudy" / "R.class"),
-    ]
-    for class_file in class_files:
-        if not Path(class_file).is_file():
-            fail("missing class file: " + class_file)
+    # IMPORTANT: include every generated class, not just MainActivity/R.
+    # Anonymous classes such as MainActivity$1 are separate .class files and a
+    # missing one makes the app crash with NoClassDefFoundError at launch.
+    class_files = sorted(str(path) for path in classes.rglob("*.class"))
+    if not class_files:
+        fail("no compiled Java class files found")
     run(
         [
             "cmd.exe",
@@ -372,7 +373,7 @@ def build() -> int:
             str(dex),
             *class_files,
         ],
-        "dex Java classes",
+        "dex Java classes (%d files)" % len(class_files),
     )
 
     dex_file = dex / "classes.dex"
