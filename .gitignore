@@ -1,0 +1,16 @@
+# local build/test artifacts
+/.tmp/
+/.edge-*/
+/.edge-cdp.pid
+/preview-*.png
+
+# generated Android output and secrets
+/android/.signing/
+/android/out/
+/android/app/assets/
+__pycache__/
+*.pyc
+
+# OS noise
+.DS_Store
+Thumbs.db
