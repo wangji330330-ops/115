@@ -196,15 +196,15 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.1.1';
-  const APP_VERSION_CODE = 3;
+  const APP_VERSION = '1.1.2';
+  const APP_VERSION_CODE = 4;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '安卓版禁止双指与双击缩放，界面保持原始大小',
-    '应用封面改为三个摆正的 777，不再使用水果图案',
-    '去掉点击、长按时的焦点框和文字选中框',
-    '摆正标题旁的金色 7，并放大右上角设置按钮',
-    '没有摇奖券时点击“摇一摇”不再自动滚动页面'
+    '任务区改回整页滚动，手指按在任务上也能正常上下滑',
+    '点击任务正文即可勾选或取消，不再只能点小方框',
+    '点击主页上方不再刷新或闪屏',
+    '删除“今日任务”上方的黄色装饰条',
+    '保留 777 封面、禁止缩放和无选中框'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -700,6 +700,8 @@
   let confirmLastFocus = null;
   let settingsLastFocus = null;
   let exportBusy = false;
+  let taskPointerStart = null;
+  let lastListScrollAt = 0;
 
   /* ========== 基础 UI ========== */
   function formatNumber(n) {
@@ -886,6 +888,7 @@
     remove.title = '删除这条任务';
     remove.textContent = '×';
 
+    li.title = task.done ? '点击任务可取消完成' : '点击任务即可完成';
     li.appendChild(check);
     li.appendChild(body);
     li.appendChild(remove);
@@ -2592,15 +2595,46 @@
       });
     });
 
+    el.taskList.addEventListener('pointerdown', function (event) {
+      const row = event.target.closest('.task-item');
+      if (!row) return;
+      taskPointerStart = {
+        id: row.dataset.id,
+        x: event.clientX,
+        y: event.clientY,
+        time: Date.now()
+      };
+    });
+
     el.taskList.addEventListener('click', function (event) {
       const button = event.target.closest('button[data-action]');
-      if (!button) return;
-      const row = button.closest('.task-item');
+      if (button) {
+        const buttonRow = button.closest('.task-item');
+        taskPointerStart = null;
+        if (!buttonRow) return;
+        const buttonId = buttonRow.dataset.id;
+        if (button.dataset.action === 'toggle') toggleTask(buttonId);
+        if (button.dataset.action === 'remove') removeTask(buttonId);
+        return;
+      }
+
+      const row = event.target.closest('.task-item');
       if (!row) return;
-      const id = row.dataset.id;
-      if (button.dataset.action === 'toggle') toggleTask(id);
-      if (button.dataset.action === 'remove') removeTask(id);
+      const pointer = taskPointerStart;
+      taskPointerStart = null;
+
+      // 滑动页面时不要误触成勾选任务。
+      if (Date.now() - lastListScrollAt < 220) return;
+      if (pointer && pointer.id === row.dataset.id) {
+        const moved = Math.abs(event.clientX - pointer.x) + Math.abs(event.clientY - pointer.y);
+        if (moved > 12 || Date.now() - pointer.time > 900) return;
+      }
+      toggleTask(row.dataset.id);
     });
+
+    document.addEventListener('scroll', function () {
+      lastListScrollAt = Date.now();
+    }, { capture: true, passive: true });
 
     el.clearDoneBtn.addEventListener('click', clearDoneTasks);
 

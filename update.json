@@ -1,18 +1,17 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 3,
-  "versionName": "1.1.1",
+  "versionCode": 4,
+  "versionName": "1.1.2",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk?v=111",
-  "sha256": "1c7e6141f61208525fff638e51403ae0ef6c12c2b97978537ded09a888e9c8a8",
+  "apkUrl": "lucky-study-machine.apk?v=112",
+  "sha256": "e9cfd3ac5ad41f2d79e238c8cad0837bb984c02a008cc7076451df479be0621b",
   "size": 357919,
   "notes": [
-    "安卓版禁止双指与双击缩放，界面保持原始大小",
-    "应用封面改为三个摆正的 777，不再使用水果图案",
-    "去掉点击、长按时的焦点框和文字选中框",
-    "摆正标题旁的金色 7，并放大右上角设置按钮",
-    "没有摇奖券时点击“摇一摇”不再自动滚动页面"
+    "修复手指按在任务上时页面滑不动的问题，任务区改回整页滚动",
+    "点击任务正文即可勾选或取消，不再只能点小方框",
+    "点击主页上方不再刷新或闪屏",
+    "删除“今日任务”上方黄色突出的装饰条"
   ]
 }
