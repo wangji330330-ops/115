@@ -3,24 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>幸运学习机 · 把努力摇成好运</title>
-<meta name="description" content="一台会发糖的幸运学习老虎机：写下今日任务，完成即可获得摇奖券，摇出 777、水果和三连好运，还能听到金币落袋的声音。">
+<title>幸运机 · 把努力摇成好运</title>
+<meta name="description" content="幸运机：写下今日任务，完成即可获得摇奖券，摇出 777、水果和三连好运，还能听到金币落袋的声音。">
 <meta name="theme-color" content="#0d0912">
 <meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="幸运学习机">
+<meta name="apple-mobile-web-app-title" content="幸运机">
 <meta name="format-detection" content="telephone=no">
 <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
 <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
 <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <meta property="og:type" content="website">
-<meta property="og:title" content="幸运学习机 · 把努力摇成好运">
+<meta property="og:title" content="幸运机 · 把努力摇成好运">
 <meta property="og:description" content="写下今日任务，完成获得摇奖券，摇出 777 和水果好运。">
 <meta property="og:image" content="https://wangji330330-ops.github.io/115/assets/icon-512.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="assets/style.css?v=4">
+<link rel="stylesheet" href="assets/style.css?v=5">
 </head>
 <body>
 <div class="ambient" aria-hidden="true">
@@ -33,11 +33,11 @@
 
 <div class="page-shell">
   <header class="site-header">
-    <div class="brand" aria-label="幸运学习机">
+    <div class="brand" aria-label="幸运机">
       <span class="brand-mark" aria-hidden="true"><span>7</span></span>
       <span class="brand-copy">
-        <span class="brand-eyebrow">LUCKY STUDY CLUB</span>
-        <h1 class="brand-title">幸运学习机</h1>
+        <span class="brand-eyebrow">LUCKY CLUB</span>
+        <h1 class="brand-title">幸运机</h1>
       </span>
     </div>
 
@@ -45,16 +45,17 @@
 
     <div class="header-tools">
       <div class="header-stats" aria-label="学习统计">
-        <div class="stat-pill" title="连续完成任务的天数">
+        <button class="stat-pill stat-pill-button" id="streakPill" type="button" title="查看学习日历" aria-haspopup="dialog" aria-controls="calendarLayer">
           <span class="stat-icon" aria-hidden="true">🔥</span>
           <span><strong id="streakDays">0</strong><span class="stat-label"> 天连胜</span></span>
-        </div>
-        <div class="stat-pill" title="累计获得的灵感星">
+          <span class="stat-chevron" aria-hidden="true">›</span>
+        </button>
+        <button class="stat-pill stat-pill-button" id="starsPill" type="button" title="点击刷新灵感数字" aria-label="灵感值，点击刷新数字">
           <span class="stat-icon" aria-hidden="true">✦</span>
           <span><strong id="totalStars">0</strong><span class="stat-label"> 灵感</span></span>
-        </div>
+        </button>
       </div>
-      <a class="apk-link" id="apkLink" href="lucky-study-machine.apk" download="幸运学习机.apk" title="下载安卓安装包">
+      <a class="apk-link" id="apkLink" href="lucky-study-machine.apk" download="幸运机.apk" title="下载安卓安装包">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>安卓版<small>APK</small></span>
       </a>
@@ -178,7 +179,7 @@
 
       <div class="progress-meta">
         <span>已完成 <b id="doneCount">0</b> / <b id="totalCount">0</b> 件</span>
-        <span>每一项都算数</span>
+        <span>每天 04:00 刷新</span>
       </div>
       <div class="progress-bar" aria-hidden="true"><span id="progressBar"></span></div>
 
@@ -244,7 +245,7 @@
       <section class="settings-section" aria-labelledby="settingsVersionHead">
         <div class="settings-section-head">
           <h3 id="settingsVersionHead"><span aria-hidden="true">✦</span> 版本更新</h3>
-          <span class="version-chip" id="currentVersionChip">v1.1.2</span>
+          <span class="version-chip" id="currentVersionChip">v1.2.0</span>
         </div>
         <div class="update-box">
           <div class="update-top">
@@ -282,10 +283,33 @@
           </div>
           <button class="settings-secondary" id="pwaInstallBtn" type="button">安装</button>
         </div>
-        <a class="settings-file-link" id="settingsApkLink" href="lucky-study-machine.apk" download="幸运学习机.apk">
+        <a class="settings-file-link" id="settingsApkLink" href="lucky-study-machine.apk" download="幸运机.apk">
           <span>下载安卓安装包</span>
           <small>APK</small>
         </a>
+      </section>
+
+      <section class="settings-section" aria-labelledby="settingsPlanHead">
+        <div class="settings-section-head">
+          <h3 id="settingsPlanHead"><span aria-hidden="true">↻</span> 任务计划</h3>
+          <span class="version-chip" id="planCountChip">0 条</span>
+        </div>
+        <div class="plan-cycle-tabs" id="planCycleTabs" role="group" aria-label="任务重复周期">
+          <button class="plan-cycle-btn is-active" id="planCycleDaily" type="button" data-plan-cycle="daily">每天</button>
+          <button class="plan-cycle-btn" id="planCycleWeekly" type="button" data-plan-cycle="weekly">每周</button>
+          <button class="plan-cycle-btn" id="planCycleMonthly" type="button" data-plan-cycle="monthly">每月</button>
+          <button class="plan-cycle-btn" id="planCycleDate" type="button" data-plan-cycle="date">指定日期</button>
+        </div>
+        <div class="plan-form">
+          <label class="sr-only" for="planText">计划任务内容</label>
+          <input class="plan-text-input" id="planText" type="text" maxlength="60" placeholder="要重复做的小事…" autocomplete="off">
+          <label class="sr-only" for="planDate">任务日期</label>
+          <input class="plan-date-input" id="planDate" type="date" hidden>
+          <button class="settings-primary plan-add-btn" id="addPlanBtn" type="button">添加</button>
+        </div>
+        <p class="form-hint plan-hint" id="planHint">每日任务在每天 04:00 刷新；每周任务每周一 04:00 刷新；每月任务每月 1 日 04:00 刷新。</p>
+        <ul class="plan-list" id="planList"></ul>
+        <p class="plan-empty" id="planEmpty">还没有任务计划，先添加一条每天要做的小事吧。</p>
       </section>
 
       <section class="settings-section" aria-labelledby="settingsDataHead">
@@ -321,7 +345,7 @@
         <div class="settings-section-head">
           <h3 id="settingsAboutHead"><span aria-hidden="true">☾</span> 关于</h3>
         </div>
-        <p class="settings-about-copy">幸运学习机把“完成一件小事”和“摇一次奖”放在一起。没有账号、没有广告，数据只留在你自己的设备里。</p>
+        <p class="settings-about-copy">幸运机把“完成一件小事”和“摇一次奖”放在一起。没有账号、没有广告，数据只留在你自己的设备里。</p>
         <div class="settings-row settings-danger-row">
           <div class="settings-row-copy">
             <strong>清空所有记录</strong>
@@ -332,7 +356,7 @@
       </section>
 
       <footer class="settings-foot">
-        <span id="settingsBuild">v1.1.2 · 本机数据</span>
+        <span id="settingsBuild">v1.2.0 · 本机数据</span>
         <button id="settingsDoneBtn" type="button">完成</button>
       </footer>
     </div>
@@ -353,10 +377,51 @@
   </div>
 </div>
 
+<div class="calendar-layer" id="calendarLayer" hidden>
+  <div class="calendar-backdrop" data-close-calendar></div>
+  <section class="calendar-modal" id="calendarModal" role="dialog" aria-modal="true" aria-labelledby="calendarHeading" tabindex="-1">
+    <header class="calendar-head">
+      <div>
+        <p class="eyebrow">YOUR LUCKY DAYS</p>
+        <h2 id="calendarHeading">学习日历</h2>
+        <p class="calendar-sub">每一格，都是你认真生活过的证据。</p>
+      </div>
+      <button class="calendar-close" id="calendarClose" type="button" aria-label="关闭学习日历">×</button>
+    </header>
+    <div class="calendar-content">
+      <div class="calendar-main">
+        <div class="calendar-toolbar">
+          <button class="calendar-nav-btn" id="calendarPrev" type="button" aria-label="上个月">‹</button>
+          <strong id="calendarMonthLabel">2026年11月</strong>
+          <button class="calendar-nav-btn" id="calendarNext" type="button" aria-label="下个月">›</button>
+          <button class="calendar-today-btn" id="calendarTodayBtn" type="button">今天</button>
+        </div>
+        <div class="calendar-weekdays" aria-hidden="true">
+          <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+        </div>
+        <div class="calendar-grid" id="calendarGrid" role="grid" aria-label="学习日历日期"></div>
+        <p class="calendar-legend"><i aria-hidden="true"></i> 有学习记录的日子</p>
+      </div>
+      <aside class="calendar-day-panel">
+        <div class="calendar-day-head">
+          <div>
+            <p class="eyebrow">DAILY RECORD</p>
+            <h3 id="calendarDayTitle">今天</h3>
+          </div>
+          <span class="calendar-stars" id="calendarDayStars">+0 灵感</span>
+        </div>
+        <p class="calendar-summary" id="calendarDaySummary">完成 0 项 · 摇奖 0 次</p>
+        <ul class="calendar-task-list" id="calendarTaskList"></ul>
+        <p class="calendar-day-empty" id="calendarDayEmpty">这一天还没有记录。</p>
+      </aside>
+    </div>
+  </section>
+</div>
+
 <div class="toast-host" id="toastHost" aria-live="polite" aria-atomic="false"></div>
 <p class="sr-only" id="srStatus" role="status" aria-live="polite"></p>
 <noscript><div class="noscript-note">这台老虎机需要开启 JavaScript 才能摇起来。</div></noscript>
 
-<script src="assets/app.js?v=4" defer></script>
+<script src="assets/app.js?v=5" defer></script>
 </body>
 </html>

@@ -1,17 +1,18 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 4,
-  "versionName": "1.1.2",
+  "versionCode": 5,
+  "versionName": "1.2.0",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk?v=112",
-  "sha256": "e9cfd3ac5ad41f2d79e238c8cad0837bb984c02a008cc7076451df479be0621b",
-  "size": 357919,
+  "apkUrl": "lucky-study-machine.apk?v=120",
+  "sha256": "c7686ae5c06e0c2b479fcc57f4a2940447645db1a244aa87fdf289918138743c",
+  "size": 366111,
   "notes": [
-    "修复手指按在任务上时页面滑不动的问题，任务区改回整页滚动",
-    "点击任务正文即可勾选或取消，不再只能点小方框",
-    "点击主页上方不再刷新或闪屏",
-    "删除“今日任务”上方黄色突出的装饰条"
+    "改名为“幸运机”，保留 777 封面和原有玩法",
+    "设置新增每日 / 每周 / 每月循环任务和指定日期任务",
+    "任务每天 04:00 刷新；周任务每周一换新，月任务每月 1 日换新",
+    "点击连胜进入学习日历，查看每天的灵感、任务与完成情况",
+    "灵感数字可点击刷新；顶部重复提示只保留一条；清除已完成需确认"
   ]
 }

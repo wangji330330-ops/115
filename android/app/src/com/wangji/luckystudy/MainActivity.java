@@ -28,7 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 /**
- * 幸运学习机 —— 把网页版装进一个离线 WebView。
+ * 幸运机 —— 把网页版装进一个离线 WebView。
  *
  * 为什么在应用内启动一个只监听 127.0.0.1 的静态文件服务？
  *  - file:// 是不透明来源，部分 WebView 会禁用 localStorage，学习记录就会丢；

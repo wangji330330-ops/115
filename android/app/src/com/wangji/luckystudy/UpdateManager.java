@@ -282,7 +282,7 @@ public class UpdateManager {
             throw new IOException("无法读取下载的安装包。");
         }
         if (!activity.getPackageName().equals(archive.packageName)) {
-            throw new IOException("安装包不属于幸运学习机，已停止安装。");
+            throw new IOException("安装包不属于幸运机，已停止安装。");
         }
         int archiveCode;
         if (Build.VERSION.SDK_INT >= 28) {

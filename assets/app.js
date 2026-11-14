@@ -1,4 +1,4 @@
-/* 幸运学习机 · 交互逻辑
+/* 幸运机 · 交互逻辑
    无框架、无后端，所有学习记录只保存在本机 localStorage。 */
 (function () {
   'use strict';
@@ -196,15 +196,15 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.1.2';
-  const APP_VERSION_CODE = 4;
+  const APP_VERSION = '1.2.0';
+  const APP_VERSION_CODE = 5;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '任务区改回整页滚动，手指按在任务上也能正常上下滑',
-    '点击任务正文即可勾选或取消，不再只能点小方框',
-    '点击主页上方不再刷新或闪屏',
-    '删除“今日任务”上方的黄色装饰条',
-    '保留 777 封面、禁止缩放和无选中框'
+    '改名为“幸运机”，保留 777 封面和原有学习玩法',
+    '新增每日 / 每周 / 每月循环任务与指定日期任务',
+    '任务统一在每天 04:00 刷新，周任务周一换新、月任务每月 1 日换新',
+    '点击连胜可打开学习日历，查看每天的任务、完成情况和灵感',
+    '点击灵感数字只播放数字刷新效果；顶部提示做了去重'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -226,14 +226,65 @@
     return n < 10 ? '0' + n : String(n);
   }
 
+  const DAY_ROLLOVER_HOUR = 4;
+
   function dateKey(date) {
     const d = date || new Date();
     return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
   }
 
+  function logicalNow() {
+    const d = new Date();
+    d.setHours(d.getHours() - DAY_ROLLOVER_HOUR);
+    return d;
+  }
+
+  function todayKey() {
+    return dateKey(logicalNow());
+  }
+
+  function parseDateKey(key) {
+    const parts = String(key || '').split('-').map(Number);
+    if (parts.length !== 3 || !parts.every(Number.isFinite)) return new Date();
+    return new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
+  }
+
+  function shiftDateKey(key, days) {
+    const d = parseDateKey(key);
+    d.setDate(d.getDate() + days);
+    return dateKey(d);
+  }
+
+  function mondayKey(key) {
+    const d = parseDateKey(key);
+    const offset = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - offset);
+    return dateKey(d);
+  }
+
+  function currentCycleKey(cycle, key) {
+    if (cycle === 'weekly') return mondayKey(key || state.date);
+    if (cycle === 'monthly') return String(key || state.date).slice(0, 7);
+    return key || state.date;
+  }
+
+  function dayNumber(key) {
+    return parseDateKey(key).getDate();
+  }
+
   function formatToday(date) {
-    const d = date || new Date();
+    const d = date || logicalNow();
     return (d.getMonth() + 1) + '月' + d.getDate() + '日 · ' + WEEKDAYS[d.getDay()];
+  }
+
+  function formatDateCN(key) {
+    const d = parseDateKey(key);
+    return (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  }
+
+  function formatFullDateCN(key) {
+    const d = parseDateKey(key);
+    return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日 · ' + WEEKDAYS[d.getDay()];
   }
 
   function formatTime(timestamp) {
@@ -247,11 +298,17 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
+  const ROUTINE_LABELS = { daily: '每日', weekly: '每周', monthly: '每月' };
+  const ROUTINE_CYCLES = ['daily', 'weekly', 'monthly'];
+
   function makeDefaultState() {
     return {
-      version: 1,
-      date: dateKey(),
+      version: 2,
+      date: todayKey(),
       tasks: [],
+      routines: [],
+      scheduled: [],
+      planSkips: {},
       tickets: START_TICKETS,
       spins: 0,
       totalStars: 0,
@@ -264,6 +321,13 @@
   let loadedWithNewDay = false;
   let storageWarned = false;
 
+  function sanitizeSnapshotTask(item) {
+    if (!item || typeof item !== 'object' || typeof item.text !== 'string') return null;
+    const text = Array.from(item.text.replace(/\s+/g, ' ').trim()).slice(0, 60).join('');
+    if (!text) return null;
+    return { text: text, done: !!item.done, source: typeof item.source === 'string' ? item.source : 'custom' };
+  }
+
   function sanitizeHistory(raw) {
     const out = {};
     if (!raw || typeof raw !== 'object') return out;
@@ -273,9 +337,15 @@
       if (!item || typeof item !== 'object') return;
       const completed = Number(item.completed);
       const spins = Number(item.spins);
+      const stars = Number(item.stars);
+      const tasks = Array.isArray(item.tasks)
+        ? item.tasks.slice(0, 60).map(sanitizeSnapshotTask).filter(Boolean)
+        : [];
       out[key] = {
         completed: Number.isFinite(completed) ? Math.max(0, Math.floor(completed)) : 0,
-        spins: Number.isFinite(spins) ? Math.max(0, Math.floor(spins)) : 0
+        spins: Number.isFinite(spins) ? Math.max(0, Math.floor(spins)) : 0,
+        stars: Number.isFinite(stars) ? Math.max(0, Math.floor(stars)) : 0,
+        tasks: tasks
       };
     });
     return out;
@@ -283,7 +353,8 @@
 
   function sanitizeTasks(rawTasks) {
     if (!Array.isArray(rawTasks)) return [];
-    const seen = new Set();
+    const seenIds = new Set();
+    const seenKeys = new Set();
     const out = [];
     rawTasks.slice(0, MAX_TASKS).forEach(function (item) {
       if (!item || typeof item !== 'object') return;
@@ -291,20 +362,89 @@
       let text = item.text.replace(/\s+/g, ' ').trim();
       if (!text) return;
       text = Array.from(text).slice(0, 60).join('');
-      const norm = text.toLocaleLowerCase('zh-CN');
-      if (seen.has(norm)) return;
-      seen.add(norm);
+      const id = typeof item.id === 'string' && item.id ? item.id : uid();
+      if (seenIds.has(id)) return;
+      const planId = typeof item.planId === 'string' && item.planId ? item.planId : null;
+      const cycleKey = typeof item.cycleKey === 'string' && item.cycleKey ? item.cycleKey : null;
+      const fallbackKey = text.toLocaleLowerCase('zh-CN') + '|' + (planId || '') + '|' + (cycleKey || '') + '|' + (Number(item.createdAt) || 0);
+      if (!planId && seenKeys.has(fallbackKey)) return;
+      seenIds.add(id);
+      seenKeys.add(fallbackKey);
+      const source = ['custom', 'random', 'idea', 'recurring', 'scheduled'].indexOf(item.source) >= 0
+        ? item.source : 'custom';
+      const recurrence = ROUTINE_CYCLES.indexOf(item.recurrence) >= 0 ? item.recurrence : null;
       out.push({
-        id: typeof item.id === 'string' && item.id ? item.id : uid(),
+        id: id,
         text: text,
         done: !!item.done,
         rewarded: !!item.rewarded,
         createdAt: Number(item.createdAt) || Date.now(),
         completedAt: Number(item.completedAt) || null,
-        source: typeof item.source === 'string' ? item.source : 'custom'
+        source: source,
+        planId: planId,
+        cycleKey: cycleKey,
+        recurrence: recurrence,
+        scheduledDate: typeof item.scheduledDate === 'string' ? item.scheduledDate : null
       });
     });
     return out;
+  }
+
+  function sanitizeRoutines(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    const seenIds = new Set();
+    const seenPlans = new Set();
+    raw.slice(0, 80).forEach(function (item) {
+      if (!item || typeof item !== 'object' || typeof item.text !== 'string') return;
+      const text = Array.from(item.text.replace(/\s+/g, ' ').trim()).slice(0, 60).join('');
+      const cycle = ROUTINE_CYCLES.indexOf(item.cycle) >= 0 ? item.cycle : 'daily';
+      if (!text) return;
+      const id = typeof item.id === 'string' && item.id ? item.id : uid();
+      const planKey = text.toLocaleLowerCase('zh-CN') + '|' + cycle;
+      if (seenIds.has(id) || seenPlans.has(planKey)) return;
+      seenIds.add(id);
+      seenPlans.add(planKey);
+      out.push({ id: id, text: text, cycle: cycle, createdAt: Number(item.createdAt) || Date.now() });
+    });
+    return out;
+  }
+
+  function sanitizeScheduled(raw) {
+    if (!Array.isArray(raw)) return [];
+    const out = [];
+    const seenIds = new Set();
+    const seenPlans = new Set();
+    raw.slice(0, 200).forEach(function (item) {
+      if (!item || typeof item !== 'object' || typeof item.text !== 'string') return;
+      const text = Array.from(item.text.replace(/\s+/g, ' ').trim()).slice(0, 60).join('');
+      const date = typeof item.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) ? item.date : '';
+      if (!text || !date) return;
+      const id = typeof item.id === 'string' && item.id ? item.id : uid();
+      const planKey = text.toLocaleLowerCase('zh-CN') + '|' + date;
+      if (seenIds.has(id) || seenPlans.has(planKey)) return;
+      seenIds.add(id);
+      seenPlans.add(planKey);
+      out.push({ id: id, text: text, date: date, createdAt: Number(item.createdAt) || Date.now() });
+    });
+    return out;
+  }
+
+  function sanitizePlanSkips(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object') return out;
+    Object.keys(raw).slice(-600).forEach(function (key) {
+      if (typeof key !== 'string' || key.indexOf(':') < 0) return;
+      out[key] = Number(raw[key]) || Date.now();
+    });
+    return out;
+  }
+
+  function taskSurvivesNewDay(task, day) {
+    if (!task || task.source !== 'recurring') return false;
+    if (task.recurrence === 'weekly') return task.cycleKey === mondayKey(day);
+    if (task.recurrence === 'monthly') return task.cycleKey === String(day).slice(0, 7);
+    return false;
   }
 
   function loadState() {
@@ -323,9 +463,18 @@
       : 0;
     fresh.history = sanitizeHistory(raw.history);
     fresh.sound = raw.sound !== false;
+    fresh.routines = sanitizeRoutines(raw.routines);
+    fresh.scheduled = sanitizeScheduled(raw.scheduled);
+    fresh.planSkips = sanitizePlanSkips(raw.planSkips);
 
     if (raw.date !== fresh.date) {
       loadedWithNewDay = !!raw.date;
+      // Weekly / monthly recurring instances keep their completion state across
+      // days inside the same week / month. Daily and one-off tasks reset.
+      fresh.tasks = sanitizeTasks(raw.tasks).filter(function (task) {
+        return taskSurvivesNewDay(task, fresh.date);
+      });
+      fresh.updatedAt = Number(raw.updatedAt) || 0;
       return fresh;
     }
 
@@ -342,8 +491,29 @@
 
   const state = loadState();
 
+  function ensureHistoryDay(day) {
+    if (!state.history[day] || typeof state.history[day] !== 'object') {
+      state.history[day] = { completed: 0, spins: 0, stars: 0, tasks: [] };
+    }
+    const entry = state.history[day];
+    if (!Number.isFinite(Number(entry.completed))) entry.completed = 0;
+    if (!Number.isFinite(Number(entry.spins))) entry.spins = 0;
+    if (!Number.isFinite(Number(entry.stars))) entry.stars = 0;
+    if (!Array.isArray(entry.tasks)) entry.tasks = [];
+    return entry;
+  }
+
+  function syncHistoryTasks() {
+    if (!state || !state.date) return;
+    const entry = ensureHistoryDay(state.date);
+    entry.tasks = state.tasks.slice(0, 60).map(function (task) {
+      return { text: task.text, done: !!task.done, source: task.source || 'custom' };
+    });
+  }
+
   function saveState() {
     state.updatedAt = Date.now();
+    syncHistoryTasks();
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch (err) {
@@ -355,47 +525,150 @@
   }
 
   function bumpHistory(field, amount) {
-    const day = state.date;
-    if (!state.history[day]) state.history[day] = { completed: 0, spins: 0 };
-    state.history[day][field] = Math.max(0, (state.history[day][field] || 0) + (amount || 1));
+    const entry = ensureHistoryDay(state.date);
+    entry[field] = Math.max(0, (entry[field] || 0) + (amount || 1));
+  }
+
+  function addHistoryStars(amount) {
+    const entry = ensureHistoryDay(state.date);
+    entry.stars = Math.max(0, (entry.stars || 0) + Math.max(0, Math.round(Number(amount) || 0)));
   }
 
   function calcStreak() {
-    const cursor = new Date();
-    cursor.setHours(12, 0, 0, 0);
-    const today = dateKey(cursor);
-    const todayEntry = state.history[today];
+    let cursorKey = todayKey();
+    const todayEntry = state.history[cursorKey];
     if (!todayEntry || !todayEntry.completed) {
-      cursor.setDate(cursor.getDate() - 1);
+      cursorKey = shiftDateKey(cursorKey, -1);
     }
     let count = 0;
     for (let i = 0; i < 3660; i += 1) {
-      const key = dateKey(cursor);
-      const entry = state.history[key];
+      const entry = state.history[cursorKey];
       if (!entry || entry.completed <= 0) break;
       count += 1;
-      cursor.setDate(cursor.getDate() - 1);
+      cursorKey = shiftDateKey(cursorKey, -1);
     }
     return count;
   }
 
+  function planSkipKey(planId, cycleKey) {
+    return planId + ':' + cycleKey;
+  }
+
+  function isPlanSkipped(planId, cycleKey) {
+    return !!state.planSkips[planSkipKey(planId, cycleKey)];
+  }
+
+  function markPlanSkipped(planId, cycleKey) {
+    if (!planId || !cycleKey) return;
+    state.planSkips[planSkipKey(planId, cycleKey)] = Date.now();
+  }
+
+  function addRoutineTask(plan) {
+    const cycleKey = currentCycleKey(plan.cycle, state.date);
+    if (isPlanSkipped(plan.id, cycleKey)) return false;
+    const exists = state.tasks.some(function (task) {
+      return task.planId === plan.id && task.cycleKey === cycleKey && task.source === 'recurring';
+    });
+    if (exists) return false;
+    state.tasks.push({
+      id: uid(),
+      text: plan.text,
+      done: false,
+      rewarded: false,
+      createdAt: Date.now(),
+      completedAt: null,
+      source: 'recurring',
+      planId: plan.id,
+      cycleKey: cycleKey,
+      recurrence: plan.cycle,
+      scheduledDate: null
+    });
+    return true;
+  }
+
+  function addScheduledTask(plan) {
+    if (plan.date !== state.date) return false;
+    if (isPlanSkipped(plan.id, plan.date)) return false;
+    const exists = state.tasks.some(function (task) {
+      return task.planId === plan.id && task.scheduledDate === plan.date && task.source === 'scheduled';
+    });
+    if (exists) return false;
+    state.tasks.push({
+      id: uid(),
+      text: plan.text,
+      done: false,
+      rewarded: false,
+      createdAt: Date.now(),
+      completedAt: null,
+      source: 'scheduled',
+      planId: plan.id,
+      cycleKey: plan.date,
+      recurrence: null,
+      scheduledDate: plan.date
+    });
+    return true;
+  }
+
+  function ensurePlanInstances() {
+    let added = 0;
+    state.routines.forEach(function (plan) {
+      if (state.tasks.length >= MAX_TASKS) return;
+      if (addRoutineTask(plan)) added += 1;
+    });
+    state.scheduled.forEach(function (plan) {
+      if (state.tasks.length >= MAX_TASKS) return;
+      if (addScheduledTask(plan)) added += 1;
+    });
+    return added;
+  }
+
+  function pruneScheduledPlans(day) {
+    state.scheduled = state.scheduled.filter(function (plan) {
+      return plan.date >= day;
+    });
+  }
+
+  function tasksForNewDay(day) {
+    return state.tasks.filter(function (task) {
+      return !!task.planId && taskSurvivesNewDay(task, day);
+    });
+  }
+
+  function prepareLoadedDay() {
+    pruneScheduledPlans(state.date);
+    ensurePlanInstances();
+    syncHistoryTasks();
+  }
+
   function ensureToday(showNotice) {
     if (spinning) return false;
-    const today = dateKey();
-    if (state.date === today) return false;
+    const today = todayKey();
+    if (state.date === today) {
+      const added = ensurePlanInstances();
+      if (added > 0) {
+        saveState();
+        renderTasks({ scrollTop: 0 });
+      }
+      return false;
+    }
+
+    syncHistoryTasks();
     state.date = today;
-    state.tasks = [];
+    state.tasks = tasksForNewDay(today);
     state.tickets = START_TICKETS;
     state.spins = 0;
+    pruneScheduledPlans(today);
+    ensurePlanInstances();
     saveState();
     renderDate();
     renderTasks({ scrollTop: 0 });
     renderTickets();
     renderSpinCounter();
     renderHeaderStats();
+    renderPlanManager();
     resetResultCard();
     if (showNotice) {
-      showToast('新的一天到啦，5 张摇奖券已经到账。', 'win', 3200);
+      showToast('新的一天开始啦（04:00 刷新），5 张摇奖券已到账。', 'win', 3400);
     }
     return true;
   }
@@ -634,6 +907,8 @@
     taskCard: $('.task-card'),
     bulbBar: $('#bulbBar'),
     pageShell: $('.page-shell'),
+    streakPill: $('#streakPill'),
+    starsPill: $('#starsPill'),
     settingsBtn: $('#settingsBtn'),
     settingsNewdot: $('#settingsNewdot'),
     settingsLayer: $('#settingsLayer'),
@@ -668,7 +943,28 @@
     confirmTitle: $('#confirmTitle'),
     confirmMessage: $('#confirmMessage'),
     confirmCancel: $('#confirmCancel'),
-    confirmOk: $('#confirmOk')
+    confirmOk: $('#confirmOk'),
+    planCycleTabs: $('#planCycleTabs'),
+    planText: $('#planText'),
+    planDate: $('#planDate'),
+    addPlanBtn: $('#addPlanBtn'),
+    planList: $('#planList'),
+    planEmpty: $('#planEmpty'),
+    planHint: $('#planHint'),
+    planCountChip: $('#planCountChip'),
+    calendarLayer: $('#calendarLayer'),
+    calendarModal: $('#calendarModal'),
+    calendarClose: $('#calendarClose'),
+    calendarPrev: $('#calendarPrev'),
+    calendarNext: $('#calendarNext'),
+    calendarTodayBtn: $('#calendarTodayBtn'),
+    calendarMonthLabel: $('#calendarMonthLabel'),
+    calendarGrid: $('#calendarGrid'),
+    calendarDayTitle: $('#calendarDayTitle'),
+    calendarDayStars: $('#calendarDayStars'),
+    calendarDaySummary: $('#calendarDaySummary'),
+    calendarTaskList: $('#calendarTaskList'),
+    calendarDayEmpty: $('#calendarDayEmpty')
   };
 
   const reelTracks = el.reels.map(function (reel) {
@@ -702,6 +998,14 @@
   let exportBusy = false;
   let taskPointerStart = null;
   let lastListScrollAt = 0;
+  let planCycle = 'daily';
+  let calendarView = { year: logicalNow().getFullYear(), month: logicalNow().getMonth() };
+  let calendarSelectedKey = todayKey();
+  let calendarLastFocus = null;
+  let calendarCloseTimer = 0;
+  let toastNode = null;
+  let toastHideTimer = 0;
+  const toastCooldowns = new Map();
 
   /* ========== 基础 UI ========== */
   function formatNumber(n) {
@@ -735,25 +1039,47 @@
   }
 
   function showToast(message, tone, duration) {
-    if (!el.toastHost) return;
-    const toast = document.createElement('div');
-    toast.className = 'toast' + (tone ? ' is-' + tone : '');
-    const text = document.createElement('span');
-    text.textContent = message;
-    toast.appendChild(text);
-    el.toastHost.appendChild(toast);
-    while (el.toastHost.children.length > 3) {
+    if (!el.toastHost || !message) return;
+    const now = Date.now();
+    const lastShown = toastCooldowns.get(message) || 0;
+    if (now - lastShown < 4000) {
+      return;
+    }
+    toastCooldowns.set(message, now);
+    if (toastCooldowns.size > 50) {
+      const oldest = toastCooldowns.keys().next().value;
+      toastCooldowns.delete(oldest);
+    }
+
+    if (!toastNode) {
+      toastNode = document.createElement('div');
+      toastNode.className = 'toast';
+      const label = document.createElement('span');
+      toastNode.appendChild(label);
+      el.toastHost.appendChild(toastNode);
+    }
+    while (el.toastHost.children.length > 1) {
       el.toastHost.removeChild(el.toastHost.firstElementChild);
     }
+    window.clearTimeout(toastHideTimer);
+
+    const label = toastNode.querySelector('span');
+    if (label) label.textContent = message;
+    toastNode.className = 'toast' + (tone ? ' is-' + tone : '');
+    toastNode.classList.remove('is-show');
+    void toastNode.offsetWidth;
     requestAnimationFrame(function () {
-      toast.classList.add('is-show');
+      toastNode.classList.add('is-show');
     });
-    window.setTimeout(function () {
-      toast.classList.remove('is-show');
-      window.setTimeout(function () {
-        if (toast.parentNode) toast.parentNode.removeChild(toast);
-      }, 280);
+    toastHideTimer = window.setTimeout(function () {
+      if (toastNode) toastNode.classList.remove('is-show');
     }, duration || 2700);
+  }
+
+  function hideToast() {
+    if (!toastNode) return;
+    window.clearTimeout(toastHideTimer);
+    toastNode.classList.remove('is-show');
   }
 
   function announce(message) {
@@ -873,10 +1199,21 @@
       meta.appendChild(makeMetaItem(task.rewarded ? '奖励已领取' : '+1 张摇奖券', 'reward-tag'));
       meta.appendChild(makeDot());
       meta.appendChild(makeMetaItem('+' + TASK_REWARD.stars + ' 灵感'));
-      if (task.source === 'random') {
-        meta.appendChild(makeDot());
-        meta.appendChild(makeMetaItem('随机灵感'));
-      }
+    }
+
+    let sourceLabel = '';
+    if (task.source === 'recurring' && task.recurrence) {
+      sourceLabel = ROUTINE_LABELS[task.recurrence] + '任务';
+    } else if (task.source === 'scheduled') {
+      sourceLabel = '日期任务';
+    } else if (task.source === 'random') {
+      sourceLabel = '随机灵感';
+    } else if (task.source === 'idea') {
+      sourceLabel = '灵感清单';
+    }
+    if (sourceLabel) {
+      meta.appendChild(makeDot());
+      meta.appendChild(makeMetaItem(sourceLabel));
     }
     body.appendChild(meta);
 
@@ -1159,7 +1496,7 @@
         el.installUpdateBtn.disabled = false;
         el.installUpdateBtn.textContent = '我已允许，继续';
         el.checkUpdateBtn.disabled = true;
-        el.updateNote.textContent = '已在系统设置中打开“安装未知应用”页面。允许“幸运学习机”安装应用后，回到这里点“我已允许，继续”。';
+        el.updateNote.textContent = '已在系统设置中打开“安装未知应用”页面。允许“幸运机”安装应用后，回到这里点“我已允许，继续”。';
         break;
 
       case 'installing':
@@ -1442,7 +1779,9 @@
     el.settingsBtn.setAttribute('aria-expanded', 'true');
     document.body.classList.add('settings-open');
     if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = true;
+    hideToast();
     renderPlatformSections();
+    renderPlanManager();
     renderUpdatePanel();
     window.requestAnimationFrame(function () {
       if (el.settingsLayer.hidden) return;
@@ -1488,19 +1827,22 @@
 
   function handleSettingsKeydown(event) {
     const confirmOpen = el.confirmLayer && !el.confirmLayer.hidden;
+    const calendarOpen = el.calendarLayer && !el.calendarLayer.hidden
+      && !el.calendarLayer.style.pointerEvents;
     const settingsOpen = el.settingsLayer && !el.settingsLayer.hidden
       && !el.settingsLayer.classList.contains('is-closing');
-    if (!confirmOpen && !settingsOpen) return;
+    if (!confirmOpen && !settingsOpen && !calendarOpen) return;
 
     if (event.key === 'Escape') {
       event.preventDefault();
       if (confirmOpen) settleConfirm(false);
+      else if (calendarOpen) closeCalendar();
       else closeSettings();
       return;
     }
 
     if (event.key !== 'Tab') return;
-    const scope = confirmOpen ? el.confirmBox : el.settingsDrawer;
+    const scope = confirmOpen ? el.confirmBox : (calendarOpen ? el.calendarModal : el.settingsDrawer);
     if (!scope) return;
     const nodes = focusableIn(scope);
     if (!nodes.length) return;
@@ -1568,7 +1910,7 @@
   }
 
   function backupFileName() {
-    return 'lucky-study-backup-' + dateKey() + '.json';
+    return 'lucky-study-backup-' + todayKey() + '.json';
   }
 
   function downloadBackupString(filename, json) {
@@ -1635,10 +1977,15 @@
       data = parsed.data;
     }
     if (!data || typeof data !== 'object' || !Array.isArray(data.tasks)) {
-      throw new Error('这不是幸运学习机的备份文件。');
+      throw new Error('这不是幸运机的备份文件。');
     }
 
     const tasks = sanitizeTasks(data.tasks);
+    const routines = sanitizeRoutines(data.routines);
+    const scheduled = sanitizeScheduled(data.scheduled).filter(function (plan) {
+      return plan.date >= todayKey();
+    });
+    const planSkips = sanitizePlanSkips(data.planSkips);
     const tickets = Number.isFinite(Number(data.tickets))
       ? clamp(Math.floor(Number(data.tickets)), 0, MAX_TICKETS)
       : START_TICKETS;
@@ -1653,6 +2000,9 @@
       : '未知日期';
     return {
       tasks: tasks,
+      routines: routines,
+      scheduled: scheduled,
+      planSkips: planSkips,
       tickets: tickets,
       spins: spins,
       totalStars: totalStars,
@@ -1664,14 +2014,20 @@
   }
 
   function applyImportedBackup(backup) {
-    const sameDay = backup.date === dateKey();
-    state.date = dateKey();
+    const today = todayKey();
+    const sameDay = backup.date === today;
+    state.date = today;
     state.tasks = sameDay ? backup.tasks : [];
+    state.routines = backup.routines;
+    state.scheduled = backup.scheduled;
+    state.planSkips = backup.planSkips;
     state.tickets = sameDay ? backup.tickets : START_TICKETS;
     state.spins = sameDay ? backup.spins : 0;
     state.totalStars = backup.totalStars;
     state.history = backup.history;
     state.sound = backup.sound;
+    pruneScheduledPlans(today);
+    ensurePlanInstances();
     audio.setEnabled(state.sound);
     renderSoundToggle();
     saveState();
@@ -1680,13 +2036,15 @@
     renderTickets();
     renderSpinCounter();
     renderHeaderStats();
+    renderPlanManager();
     renderPlatformSections();
     resetResultCard();
     const done = backup.tasks.filter(function (task) { return task.done; }).length;
+    const planCount = backup.routines.length + backup.scheduled.length;
     showToast(
       sameDay
-        ? '数据已恢复：' + backup.tasks.length + ' 个任务，完成 ' + done + ' 个。'
-        : '备份来自 ' + backup.date + '，任务已按新的一天重置，累计灵感和历史已恢复。',
+        ? '数据已恢复：' + backup.tasks.length + ' 个任务，完成 ' + done + ' 个，' + planCount + ' 条计划。'
+        : '备份来自 ' + backup.date + '，任务已按新的一天重置；累计灵感和 ' + planCount + ' 条计划已恢复。',
       'win',
       4600
     );
@@ -1707,10 +2065,12 @@
         return;
       }
       pendingImportBackup = backup;
-      const sameDay = backup.date === dateKey();
+      const sameDay = backup.date === todayKey();
       const done = backup.tasks.filter(function (task) { return task.done; }).length;
+      const planCount = backup.routines.length + backup.scheduled.length;
       let message = '备份日期：' + backup.date
         + '\n任务：' + backup.tasks.length + ' 项（完成 ' + done + ' 项）'
+        + '\n计划：' + planCount + ' 条'
         + '\n灵感星：' + formatNumber(backup.totalStars) + ' · 摇奖券：' + backup.tickets
         + '\n\n导入会覆盖当前的任务和记录。';
       if (!sameDay) {
@@ -1745,16 +2105,372 @@
     reader.readAsText(file, 'utf-8');
   }
 
+  /* ========== 任务计划 ========== */
+  function planTypeLabel(cycle) {
+    if (cycle === 'weekly') return '每周';
+    if (cycle === 'monthly') return '每月';
+    if (cycle === 'date') return '日期';
+    return '每日';
+  }
+
+  function planScheduleLabel(cycle) {
+    if (cycle === 'weekly') return '每周一 04:00 换新';
+    if (cycle === 'monthly') return '每月 1 日 04:00 换新';
+    if (cycle === 'date') return '指定日期当天出现';
+    return '每天 04:00 换新';
+  }
+
+  function updatePlanTypeUI() {
+    $$('.plan-cycle-btn', el.planCycleTabs).forEach(function (button) {
+      button.classList.toggle('is-active', button.dataset.planCycle === planCycle);
+    });
+    if (el.planDate) {
+      el.planDate.hidden = planCycle !== 'date';
+      el.planDate.min = todayKey();
+      if (planCycle === 'date' && !el.planDate.value) {
+        el.planDate.value = todayKey();
+      }
+    }
+    if (el.planHint) {
+      if (planCycle === 'daily') {
+        el.planHint.textContent = '每日任务每天 04:00 换新，完成一次领一次奖励。';
+      } else if (planCycle === 'weekly') {
+        el.planHint.textContent = '每周任务每周一 04:00 换新，整周都会留在清单里。';
+      } else if (planCycle === 'monthly') {
+        el.planHint.textContent = '每月任务每月 1 日 04:00 换新，整月都会留在清单里。';
+      } else {
+        el.planHint.textContent = '日期任务只在指定日期出现；只能选择今天或之后的日期。';
+      }
+    }
+  }
+
+  function setPlanCycle(cycle) {
+    planCycle = ROUTINE_CYCLES.indexOf(cycle) >= 0 || cycle === 'date' ? cycle : 'daily';
+    updatePlanTypeUI();
+  }
+
+  function planScheduleText(plan, kind) {
+    if (kind === 'scheduled') {
+      const isToday = plan.date === state.date;
+      const prefix = isToday ? '今天' : (plan.date < todayKey() ? '已过期' : '计划');
+      return formatFullDateCN(plan.date) + ' · ' + prefix;
+    }
+    return planScheduleLabel(plan.cycle);
+  }
+
+  function makePlanItem(plan, kind) {
+    const li = document.createElement('li');
+    li.className = 'plan-item';
+    const badge = document.createElement('span');
+    badge.className = 'plan-item-badge';
+    badge.textContent = kind === 'scheduled' ? '日期' : planTypeLabel(plan.cycle);
+    const copy = document.createElement('div');
+    copy.className = 'plan-item-copy';
+    const strong = document.createElement('strong');
+    strong.textContent = plan.text;
+    const p = document.createElement('p');
+    p.textContent = planScheduleText(plan, kind);
+    copy.appendChild(strong);
+    copy.appendChild(p);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'plan-item-remove';
+    remove.dataset.planRemove = kind;
+    remove.dataset.planId = plan.id;
+    remove.setAttribute('aria-label', '删除任务计划：' + plan.text);
+    remove.title = '删除计划';
+    remove.textContent = '×';
+    li.appendChild(badge);
+    li.appendChild(copy);
+    li.appendChild(remove);
+    return li;
+  }
+
+  function renderPlanManager() {
+    if (!el.planList) return;
+    updatePlanTypeUI();
+    while (el.planList.firstChild) el.planList.removeChild(el.planList.firstChild);
+    const routines = state.routines.slice().sort(function (a, b) {
+      const order = { daily: 0, weekly: 1, monthly: 2 };
+      return (order[a.cycle] || 0) - (order[b.cycle] || 0) || a.createdAt - b.createdAt;
+    });
+    const scheduled = state.scheduled.slice().sort(function (a, b) {
+      return a.date < b.date ? -1 : (a.date > b.date ? 1 : a.createdAt - b.createdAt);
+    });
+    routines.forEach(function (plan) { el.planList.appendChild(makePlanItem(plan, 'routine')); });
+    scheduled.forEach(function (plan) { el.planList.appendChild(makePlanItem(plan, 'scheduled')); });
+    const total = routines.length + scheduled.length;
+    el.planEmpty.hidden = total > 0;
+    if (el.planCountChip) el.planCountChip.textContent = total + ' 条';
+  }
+
+  function addPlanFromForm() {
+    const text = normalizedTaskText(el.planText.value);
+    if (!text) {
+      audio.error();
+      showToast('先写下一件想重复做的小事吧。', 'warn', 3000);
+      el.planText.focus({ preventScroll: true });
+      return;
+    }
+    const duplicate = state.routines.some(function (plan) {
+      return plan.cycle === planCycle && plan.text.toLocaleLowerCase('zh-CN') === text.toLocaleLowerCase('zh-CN');
+    });
+    if (planCycle === 'date') {
+      const date = el.planDate.value;
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < todayKey()) {
+        audio.error();
+        showToast('日期只能选今天或之后的日期。', 'warn', 3200);
+        el.planDate.focus({ preventScroll: true });
+        return;
+      }
+      if (state.scheduled.some(function (plan) {
+        return plan.date === date && plan.text.toLocaleLowerCase('zh-CN') === text.toLocaleLowerCase('zh-CN');
+      })) {
+        audio.error();
+        showToast('这一天已经安排过同样的任务了。', 'warn', 3000);
+        return;
+      }
+      state.scheduled.push({ id: uid(), text: text, date: date, createdAt: Date.now() });
+      const added = ensurePlanInstances();
+      saveState();
+      renderPlanManager();
+      if (added) {
+        renderTasks({ scrollTop: 0 });
+        showToast(date === state.date ? '日期任务已加入今天的清单。' : '已安排到 ' + formatFullDateCN(date) + '。', 'win');
+      } else {
+        showToast('已安排到 ' + formatFullDateCN(date) + '，到当天会自动出现。', 'win', 3400);
+      }
+    } else {
+      if (duplicate) {
+        audio.error();
+        showToast('这个周期的任务已经在计划里了。', 'warn', 3000);
+        return;
+      }
+      state.routines.push({ id: uid(), text: text, cycle: planCycle, createdAt: Date.now() });
+      const added = ensurePlanInstances();
+      saveState();
+      renderPlanManager();
+      if (added) renderTasks({ scrollTop: 0 });
+      showToast(
+        planTypeLabel(planCycle) + '任务已添加，' + (planCycle === 'daily' ? '每天' : (planCycle === 'weekly' ? '每周一' : '每月 1 日')) + ' 04:00 刷新。',
+        'win',
+        3600
+      );
+    }
+    el.planText.value = '';
+    el.planText.focus({ preventScroll: true });
+  }
+
+  function deletePlan(kind, id) {
+    const list = kind === 'scheduled' ? state.scheduled : state.routines;
+    const index = list.findIndex(function (plan) { return plan.id === id; });
+    if (index < 0) return;
+    const plan = list[index];
+    list.splice(index, 1);
+    state.tasks = state.tasks.filter(function (task) { return !(task.planId === plan.id); });
+    Object.keys(state.planSkips).forEach(function (key) {
+      if (key.indexOf(plan.id + ':') === 0) delete state.planSkips[key];
+    });
+    saveState();
+    renderTasks({ scrollTop: 0 });
+    renderPlanManager();
+    audio.ui();
+    showToast('任务计划已删除，对应的当前任务也一并移除。', 'info', 3000);
+  }
+
+  function refreshInspirationDisplay() {
+    if (!el.totalStars) return;
+    const target = Math.max(0, Math.round(state.totalStars));
+    if (el.totalStars._countRaf) cancelAnimationFrame(el.totalStars._countRaf);
+    el.totalStars.dataset.value = '0';
+    el.totalStars.textContent = '0';
+    el.totalStars.classList.remove('is-refreshing');
+    void el.totalStars.offsetWidth;
+    el.totalStars.classList.add('is-refreshing');
+    animateNumber(el.totalStars, target);
+    window.setTimeout(function () {
+      if (el.totalStars) el.totalStars.classList.remove('is-refreshing');
+    }, 720);
+  }
+
+  /* ========== 学习日历 ========== */
+  function dayHasRecord(key) {
+    const entry = state.history[key];
+    if (!entry) return false;
+    return (entry.completed || 0) > 0 || (entry.spins || 0) > 0 || (entry.stars || 0) > 0
+      || (entry.tasks || []).some(function (task) { return task.done; });
+  }
+
+  function dayHasPlan(key) {
+    return state.scheduled.some(function (plan) { return plan.date === key; });
+  }
+
+  function calendarDayTasks(key) {
+    if (key === state.date) {
+      return state.tasks.map(function (task) {
+        return { text: task.text, done: !!task.done, source: task.source || 'custom' };
+      });
+    }
+    if (key > todayKey()) {
+      return state.scheduled
+        .filter(function (plan) { return plan.date === key; })
+        .map(function (plan) { return { text: plan.text, done: false, source: 'scheduled' }; });
+    }
+    const entry = state.history[key];
+    return entry && Array.isArray(entry.tasks) ? entry.tasks : [];
+  }
+
+  function renderCalendarDayDetail(key) {
+    const isToday = key === todayKey();
+    const isFuture = key > todayKey();
+    const entry = state.history[key] || { completed: 0, spins: 0, stars: 0, tasks: [] };
+    const tasks = calendarDayTasks(key);
+    const title = formatFullDateCN(key) + (isToday ? ' · 今天' : (isFuture ? ' · 计划' : ''));
+    el.calendarDayTitle.textContent = title;
+    const stars = isFuture ? 0 : Math.max(0, Number(entry.stars) || 0);
+    el.calendarDayStars.textContent = '+' + formatNumber(stars) + ' 灵感';
+    if (isFuture) {
+      el.calendarDaySummary.textContent = tasks.length
+        ? '已安排 ' + tasks.length + ' 项日期任务'
+        : '这一天还没有安排日期任务';
+    } else {
+      el.calendarDaySummary.textContent = '当日完成 ' + Math.max(0, Number(entry.completed) || 0)
+        + ' 项 · 摇奖 ' + Math.max(0, Number(entry.spins) || 0) + ' 次';
+    }
+
+    while (el.calendarTaskList.firstChild) el.calendarTaskList.removeChild(el.calendarTaskList.firstChild);
+    tasks.forEach(function (task) {
+      const li = document.createElement('li');
+      li.className = 'calendar-task-item' + (task.done ? ' is-done' : '');
+      const status = document.createElement('span');
+      status.className = 'calendar-task-status';
+      status.setAttribute('aria-hidden', 'true');
+      status.textContent = task.done ? '✓' : '';
+      const text = document.createElement('span');
+      text.className = 'calendar-task-text';
+      text.textContent = task.text;
+      li.appendChild(status);
+      li.appendChild(text);
+      el.calendarTaskList.appendChild(li);
+    });
+
+    el.calendarDayEmpty.hidden = tasks.length > 0;
+    if (!tasks.length) {
+      el.calendarDayEmpty.textContent = isFuture
+        ? '这一天没有提前安排的日期任务。'
+        : (isToday ? '今天还没有任务，去添加一件小事吧。' : '这一天没有留下任务记录。');
+    }
+  }
+
+  function renderCalendar() {
+    if (!el.calendarGrid) return;
+    const year = calendarView.year;
+    const month = calendarView.month;
+    el.calendarMonthLabel.textContent = year + '年' + (month + 1) + '月';
+    while (el.calendarGrid.firstChild) el.calendarGrid.removeChild(el.calendarGrid.firstChild);
+
+    const first = new Date(year, month, 1, 12, 0, 0, 0);
+    const offset = (first.getDay() + 6) % 7;
+    const totalDays = new Date(year, month + 1, 0, 12, 0, 0, 0).getDate();
+    const today = todayKey();
+    for (let i = 0; i < offset; i += 1) {
+      const blank = document.createElement('span');
+      blank.className = 'calendar-blank';
+      blank.setAttribute('aria-hidden', 'true');
+      el.calendarGrid.appendChild(blank);
+    }
+    for (let day = 1; day <= totalDays; day += 1) {
+      const key = year + '-' + pad2(month + 1) + '-' + pad2(day);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'calendar-day'
+        + (key === calendarSelectedKey ? ' is-selected' : '')
+        + (key === today ? ' is-today' : '')
+        + (key > today ? ' is-future' : '')
+        + (dayHasRecord(key) ? ' has-data' : '')
+        + (dayHasPlan(key) ? ' has-plan' : '');
+      button.dataset.calendarDate = key;
+      button.textContent = String(day);
+      if (key === today) button.setAttribute('aria-current', 'date');
+      if (key === calendarSelectedKey) button.setAttribute('aria-selected', 'true');
+      button.setAttribute('aria-label', formatFullDateCN(key) + (dayHasRecord(key) ? '，有学习记录' : ''));
+      el.calendarGrid.appendChild(button);
+    }
+    renderCalendarDayDetail(calendarSelectedKey);
+  }
+
+  function openCalendar() {
+    if (!el.calendarLayer || !el.calendarLayer.hidden) return;
+    ensureToday(false);
+    calendarLastFocus = document.activeElement;
+    const today = todayKey();
+    const d = parseDateKey(today);
+    calendarView = { year: d.getFullYear(), month: d.getMonth() };
+    calendarSelectedKey = today;
+    renderCalendar();
+    hideToast();
+    window.clearTimeout(calendarCloseTimer);
+    el.calendarLayer.hidden = false;
+    el.calendarLayer.style.pointerEvents = '';
+    document.body.classList.add('calendar-open');
+    if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = true;
+    window.requestAnimationFrame(function () {
+      el.calendarLayer.classList.add('is-open');
+      el.calendarClose.focus({ preventScroll: true });
+    });
+  }
+
+  function closeCalendar() {
+    if (!el.calendarLayer || el.calendarLayer.hidden) return;
+    el.calendarLayer.classList.remove('is-open');
+    el.calendarLayer.style.pointerEvents = 'none';
+    document.body.classList.remove('calendar-open');
+    if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = false;
+    window.clearTimeout(calendarCloseTimer);
+    calendarCloseTimer = window.setTimeout(function () {
+      if (el.calendarLayer.classList.contains('is-open')) return;
+      const shouldRestore = el.calendarModal.contains(document.activeElement);
+      el.calendarLayer.hidden = true;
+      el.calendarLayer.style.pointerEvents = '';
+      if (!shouldRestore) return;
+      const target = calendarLastFocus && document.contains(calendarLastFocus)
+        ? calendarLastFocus : el.streakPill;
+      if (target) target.focus({ preventScroll: true });
+    }, 300);
+  }
+
+  function shiftCalendarMonth(delta) {
+    const d = new Date(calendarView.year, calendarView.month + delta, 1, 12, 0, 0, 0);
+    calendarView = { year: d.getFullYear(), month: d.getMonth() };
+    const today = todayKey();
+    const todayDate = parseDateKey(today);
+    calendarSelectedKey = (todayDate.getFullYear() === calendarView.year && todayDate.getMonth() === calendarView.month)
+      ? today
+      : dateKey(new Date(calendarView.year, calendarView.month, 1, 12, 0, 0, 0));
+    renderCalendar();
+  }
+
+  function selectCalendarDate(key) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
+    calendarSelectedKey = key;
+    const d = parseDateKey(key);
+    calendarView = { year: d.getFullYear(), month: d.getMonth() };
+    renderCalendar();
+  }
+
   async function clearAllLearningData() {
     const ok = await showConfirm({
       title: '清空全部学习记录？',
-      message: '任务清单、灵感星、连续天数和历史记录都会被删除，且无法恢复。\n如果还没备份，建议先导出。',
+      message: '任务清单、计划任务、灵感星、连续天数和历史记录都会被删除，且无法恢复。\n如果还没备份，建议先导出。',
       confirmLabel: '确认清空',
       danger: true
     });
     if (!ok) return;
-    state.date = dateKey();
+    state.date = todayKey();
     state.tasks = [];
+    state.routines = [];
+    state.scheduled = [];
+    state.planSkips = {};
     state.tickets = START_TICKETS;
     state.spins = 0;
     state.totalStars = 0;
@@ -1765,6 +2481,7 @@
     renderTickets();
     renderSpinCounter();
     renderHeaderStats();
+    renderPlanManager();
     resetResultCard();
     showToast('已清空所有学习数据，今天可以从头开始。', 'win', 3800);
     closeSettings();
@@ -2123,7 +2840,10 @@
 
   function applyOutcome(outcome) {
     markMatches(outcome.matched);
-    if (outcome.stars > 0) state.totalStars += outcome.stars;
+    if (outcome.stars > 0) {
+      state.totalStars += outcome.stars;
+      addHistoryStars(outcome.stars);
+    }
     if (outcome.bonusTickets > 0) {
       state.tickets = clamp(state.tickets + outcome.bonusTickets, 0, MAX_TICKETS);
     }
@@ -2187,6 +2907,7 @@
     if (spinning) return;
     if (el.settingsLayer && !el.settingsLayer.hidden) return;
     if (el.confirmLayer && !el.confirmLayer.hidden) return;
+    if (el.calendarLayer && !el.calendarLayer.hidden) return;
     ensureToday(true);
     if (state.tickets <= 0) {
       audio.error();
@@ -2340,6 +3061,7 @@
         state.tickets = clamp(state.tickets + TASK_REWARD.tickets, 0, MAX_TICKETS);
         state.totalStars += TASK_REWARD.stars;
         bumpHistory('completed', 1);
+        addHistoryStars(TASK_REWARD.stars);
         newlyRewarded = true;
       }
       saveState();
@@ -2394,6 +3116,10 @@
   function removeTask(id) {
     const index = state.tasks.findIndex(function (item) { return item.id === id; });
     if (index < 0) return;
+    const removed = state.tasks[index];
+    if ((removed.source === 'recurring' || removed.source === 'scheduled') && removed.planId) {
+      markPlanSkipped(removed.planId, removed.cycleKey || removed.scheduledDate || state.date);
+    }
     const scrollTop = el.taskListWrap.scrollTop;
     state.tasks.splice(index, 1);
     saveState();
@@ -2403,14 +3129,27 @@
     showToast('任务已删除。');
   }
 
-  function clearDoneTasks() {
-    const doneCount = state.tasks.filter(function (task) { return task.done; }).length;
-    if (!doneCount) return;
+  async function clearDoneTasks() {
+    const doneTasks = state.tasks.filter(function (task) { return task.done; });
+    if (!doneTasks.length) return;
+    const ok = await showConfirm({
+      title: '清除已完成任务？',
+      message: '将移除 ' + doneTasks.length + ' 条已完成任务。\n灵感星和摇奖券奖励已经发放，不会退回，但清单会变干净。',
+      confirmLabel: '清除',
+      cancelLabel: '保留',
+      danger: true
+    });
+    if (!ok) return;
+    doneTasks.forEach(function (task) {
+      if (task.source === 'recurring' || task.source === 'scheduled') {
+        markPlanSkipped(task.planId, task.cycleKey || task.scheduledDate || state.date);
+      }
+    });
     state.tasks = state.tasks.filter(function (task) { return !task.done; });
     saveState();
     renderTasks({ scrollTop: 0 });
     audio.ui();
-    showToast('已清理 ' + doneCount + ' 条完成记录。');
+    showToast('已清理 ' + doneTasks.length + ' 条完成记录。');
     el.clearDoneBtn.blur();
   }
 
@@ -2583,6 +3322,8 @@
       audio.unlock();
       audio.click(0.012);
       window.setTimeout(function () {
+        // Keep the roll under the 280ms animation so the die finishes upright
+        // before the class is removed (otherwise it can look stuck at an angle).
         el.randomBtn.classList.remove('is-rolling');
         addRandomTask();
         el.randomBtn.disabled = false;
@@ -2675,6 +3416,7 @@
       if (event.code !== 'Space' && event.key !== ' ') return;
       if (el.settingsLayer && !el.settingsLayer.hidden) return;
       if (el.confirmLayer && !el.confirmLayer.hidden) return;
+      if (el.calendarLayer && !el.calendarLayer.hidden) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
       const active = document.activeElement;
       const tag = active ? active.tagName : '';
@@ -2696,7 +3438,7 @@
     });
 
     window.setInterval(function () {
-      if (!spinning) ensureToday(false);
+      if (!spinning) ensureToday(true);
     }, 60000);
 
     window.addEventListener('resize', function () {
@@ -2717,6 +3459,9 @@
     document.addEventListener('pointerdown', function () {
       if (state.sound) audio.unlock();
     }, { once: true, passive: true });
+
+    el.streakPill.addEventListener('click', openCalendar);
+    el.starsPill.addEventListener('click', refreshInspirationDisplay);
 
     el.settingsBtn.addEventListener('click', function (event) {
       event.preventDefault();
@@ -2745,6 +3490,45 @@
     el.confirmOk.addEventListener('click', function () { settleConfirm(true); });
     $$('[data-confirm-cancel]').forEach(function (node) {
       node.addEventListener('click', function () { settleConfirm(false); });
+    });
+
+    $$('.plan-cycle-btn', el.planCycleTabs).forEach(function (button) {
+      button.addEventListener('click', function () {
+        setPlanCycle(button.dataset.planCycle || 'daily');
+      });
+    });
+    el.addPlanBtn.addEventListener('click', addPlanFromForm);
+    [el.planText, el.planDate].forEach(function (input) {
+      input.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          addPlanFromForm();
+        }
+      });
+    });
+    el.planList.addEventListener('click', function (event) {
+      const remove = event.target.closest('[data-plan-remove]');
+      if (!remove) return;
+      deletePlan(remove.dataset.planRemove, remove.dataset.planId);
+    });
+
+    el.calendarClose.addEventListener('click', closeCalendar);
+    $$('[data-close-calendar]').forEach(function (node) {
+      node.addEventListener('click', closeCalendar);
+    });
+    el.calendarPrev.addEventListener('click', function () { shiftCalendarMonth(-1); });
+    el.calendarNext.addEventListener('click', function () { shiftCalendarMonth(1); });
+    el.calendarTodayBtn.addEventListener('click', function () {
+      const today = todayKey();
+      const d = parseDateKey(today);
+      calendarView = { year: d.getFullYear(), month: d.getMonth() };
+      calendarSelectedKey = today;
+      renderCalendar();
+    });
+    el.calendarGrid.addEventListener('click', function (event) {
+      const day = event.target.closest('[data-calendar-date]');
+      if (!day) return;
+      selectCalendarDate(day.dataset.calendarDate);
     });
 
     window.addEventListener('beforeinstallprompt', function (event) {
@@ -2776,16 +3560,18 @@
         return state.tickets;
       },
       resetToday: function () {
-        state.date = dateKey();
+        state.date = todayKey();
         state.tasks = [];
         state.tickets = START_TICKETS;
         state.spins = 0;
+        ensurePlanInstances();
         saveState();
         renderDate();
         renderTasks({ scrollTop: 0 });
         renderTickets();
         renderSpinCounter();
         renderHeaderStats();
+        renderPlanManager();
         resetResultCard();
       },
       getState: function () {
@@ -2817,6 +3603,7 @@
 
   function init() {
     initPlatformInfo();
+    prepareLoadedDay();
     renderBulbs();
     renderDate();
     renderSoundToggle();
@@ -2825,6 +3612,7 @@
     renderSpinCounter();
     initReels();
     renderTasks({ scrollTop: 0 });
+    renderPlanManager();
     bindEvents();
     setupFx();
     setupDebugApi();
@@ -2837,7 +3625,7 @@
 
     if (loadedWithNewDay) {
       window.setTimeout(function () {
-        showToast('新的一天到啦，5 张摇奖券已经到账。', 'win', 3200);
+        showToast('新的一天开始啦（04:00 刷新），5 张摇奖券已经到账。', 'win', 3400);
       }, 700);
     }
 
