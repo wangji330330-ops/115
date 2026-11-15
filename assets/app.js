@@ -196,13 +196,14 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.4.3';
-  const APP_VERSION_CODE = 12;
+  const APP_VERSION = '1.4.4';
+  const APP_VERSION_CODE = 13;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '顶部金币里的 7 下调 3 像素',
-    '777 标志里的三个 7 之间各间隔 2 像素',
-    '其余功能与 v1.4.2 相同'
+    '日历任务直接全部显示，可以在任务框里上下滑动查看',
+    '每个任务前加了序号',
+    '「全部 N 项」继续显示任务数量，但不再需要点击展开',
+    '其余功能与 v1.4.3 相同'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -1197,9 +1198,7 @@
     calendarTaskList: $('#calendarTaskList'),
     calendarDayEmpty: $('#calendarDayEmpty'),
     calendarShowAll: $('#calendarShowAll'),
-    calendarShowAllLabel: $('#calendarShowAllLabel'),
     calendarShowAllCount: $('#calendarShowAllCount'),
-    calendarShowAllChevron: $('#calendarShowAllChevron'),
     calendarAllLayer: $('#calendarAllLayer'),
     calendarAllModal: $('#calendarAllModal'),
     calendarAllClose: $('#calendarAllClose'),
@@ -1263,7 +1262,6 @@
   let calendarCloseTimer = 0;
   let calendarAllLastFocus = null;
   let calendarAllCloseTimer = 0;
-  let calendarAllExpanded = false;
   let photoTaskId = null;
   let photoLastFocus = null;
   let photoCloseTimer = 0;
@@ -2878,17 +2876,22 @@
     return Math.abs(diff) + '天前';
   }
 
-  function makeCalendarTaskItem(task, key) {
+  function makeCalendarTaskItem(task, key, index) {
     const li = document.createElement('li');
     li.className = 'calendar-task-item' + (task.done ? ' is-done' : '');
     const status = document.createElement('span');
     status.className = 'calendar-task-status';
     status.setAttribute('aria-hidden', 'true');
     status.textContent = task.done ? '✓' : '';
+    const order = document.createElement('span');
+    order.className = 'calendar-task-index';
+    order.setAttribute('aria-hidden', 'true');
+    order.textContent = String((Number(index) || 0) + 1) + '.';
     const text = document.createElement('span');
     text.className = 'calendar-task-text';
     text.textContent = task.text;
     li.appendChild(status);
+    li.appendChild(order);
     li.appendChild(text);
     if (task.done && task.photoId && task.photoDay === key) {
       const photo = document.createElement('button');
@@ -2927,21 +2930,15 @@
       el.calendarDaySummary.textContent = summary;
     }
 
-    const showingAll = calendarAllExpanded && tasks.length > 3;
+    // Show every task in a directly scrollable list. The “全部 N 项” footer is
+    // only a count, not a gate that has to be tapped first.
     while (el.calendarTaskList.firstChild) el.calendarTaskList.removeChild(el.calendarTaskList.firstChild);
-    (showingAll ? tasks : tasks.slice(0, 3)).forEach(function (task) {
-      el.calendarTaskList.appendChild(makeCalendarTaskItem(task, key));
+    tasks.forEach(function (task, index) {
+      el.calendarTaskList.appendChild(makeCalendarTaskItem(task, key, index));
     });
-    el.calendarTaskList.classList.toggle('is-expanded', showingAll);
-    const hasMore = tasks.length > 3;
     if (el.calendarShowAll) {
-      el.calendarShowAll.hidden = !hasMore;
-      if (el.calendarShowAllLabel) el.calendarShowAllLabel.textContent = showingAll ? '收起' : '全部';
-      if (el.calendarShowAllCount) {
-        el.calendarShowAllCount.textContent = String(tasks.length);
-        el.calendarShowAllCount.hidden = showingAll;
-      }
-      if (el.calendarShowAllChevron) el.calendarShowAllChevron.textContent = showingAll ? '↑' : '›';
+      el.calendarShowAll.hidden = tasks.length === 0;
+      if (el.calendarShowAllCount) el.calendarShowAllCount.textContent = String(tasks.length);
     }
 
     el.calendarDayEmpty.hidden = tasks.length > 0;
@@ -2960,8 +2957,8 @@
     calendarAllLastFocus = document.activeElement;
     if (el.calendarAllSub) el.calendarAllSub.textContent = relativeDayLabel(key) + ' · ' + tasks.length + ' 项任务';
     while (el.calendarAllList.firstChild) el.calendarAllList.removeChild(el.calendarAllList.firstChild);
-    tasks.forEach(function (task) {
-      el.calendarAllList.appendChild(makeCalendarTaskItem(task, key));
+    tasks.forEach(function (task, index) {
+      el.calendarAllList.appendChild(makeCalendarTaskItem(task, key, index));
     });
     if (el.calendarAllEmpty) el.calendarAllEmpty.hidden = true;
     el.calendarAllLayer.hidden = false;
@@ -3029,7 +3026,6 @@
     const d = parseDateKey(today);
     calendarView = { year: d.getFullYear(), month: d.getMonth() };
     calendarSelectedKey = today;
-    calendarAllExpanded = false;
     renderCalendar();
     hideToast();
     window.clearTimeout(calendarCloseTimer);
@@ -3071,14 +3067,12 @@
     calendarSelectedKey = (todayDate.getFullYear() === calendarView.year && todayDate.getMonth() === calendarView.month)
       ? today
       : dateKey(new Date(calendarView.year, calendarView.month, 1, 12, 0, 0, 0));
-    calendarAllExpanded = false;
     renderCalendar();
   }
 
   function selectCalendarDate(key) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
     calendarSelectedKey = key;
-    calendarAllExpanded = false;
     const d = parseDateKey(key);
     calendarView = { year: d.getFullYear(), month: d.getMonth() };
     renderCalendar();
@@ -4226,7 +4220,6 @@
       const d = parseDateKey(today);
       calendarView = { year: d.getFullYear(), month: d.getMonth() };
       calendarSelectedKey = today;
-      calendarAllExpanded = false;
       renderCalendar();
     });
     el.calendarGrid.addEventListener('click', function (event) {
@@ -4238,12 +4231,6 @@
       const photo = event.target.closest('[data-calendar-photo]');
       if (!photo) return;
       openPhotoViewer(photo.dataset.calendarPhoto, photo.dataset.photoCaption || '');
-    });
-    el.calendarShowAll.addEventListener('click', function () {
-      const tasks = calendarDayTasks(calendarSelectedKey);
-      if (tasks.length <= 3) return;
-      calendarAllExpanded = !calendarAllExpanded;
-      renderCalendarDayDetail(calendarSelectedKey);
     });
     el.calendarAllClose.addEventListener('click', closeCalendarAll);
     $$('[data-close-calendar-all]').forEach(function (node) {

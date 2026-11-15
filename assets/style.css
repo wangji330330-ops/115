@@ -4404,3 +4404,45 @@ html.theme-light .confirm-actions { border-top-color: rgba(115, 75, 55, .12); }
 /* v1.4.3 optical tweaks are APK-only; the web version keeps the original alignment. */
 html.is-android .brand-mark > span { transform: translateY(2px); }
 html.is-android .machine-logo b { letter-spacing: 2px; margin-right: -2px; }
+
+/* Calendar: all tasks are rendered directly and this list scrolls; the footer is just a count. */
+.calendar-task-list {
+  max-height: 238px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 3px;
+  flex: 0 0 auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(135, 93, 63, .28) transparent;
+}
+.calendar-show-all {
+  height: 28px;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 9.5px;
+  pointer-events: none;
+  user-select: none;
+  cursor: default;
+}
+.calendar-task-index {
+  flex: 0 0 auto;
+  min-width: 14px;
+  color: #a98b7b;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: right;
+}
+.calendar-task-item.is-done .calendar-task-index { color: #b8a196; }
+@media (max-width: 760px) {
+  .calendar-task-list { max-height: 218px; }
+}
+
+.calendar-task-index {
+  min-width: 17px;
+  color: #957565;
+  font-size: 10px;
+  font-weight: 700;
+}
+.calendar-task-item.is-done .calendar-task-index { color: #a98d7d; }

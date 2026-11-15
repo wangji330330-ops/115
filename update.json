@@ -1,16 +1,17 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 12,
-  "versionName": "1.4.3",
+  "versionCode": 13,
+  "versionName": "1.4.4",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk?v=143",
-  "sha256": "e145dacfe6ce9f7354ba405231806ee357397d336bf67f35786bda11c01ac32f",
+  "apkUrl": "lucky-study-machine.apk?v=144",
+  "sha256": "cee8eacded03b7eca3bf0dc193132e0f6bc384e68a5fbd02a059bb10b674ce28",
   "size": 382495,
   "notes": [
-    "顶部金币里的 7 下调 3 像素",
-    "777 标志里的三个 7 之间各间隔 2 像素",
-    "其余功能与 v1.4.2 相同"
+    "日历任务直接全部显示，可以在任务框里上下滑动查看",
+    "每个任务前加了序号",
+    "「全部 N 项」继续显示任务数量，但不再需要点击展开",
+    "其余功能与 v1.4.3 相同"
   ]
 }
