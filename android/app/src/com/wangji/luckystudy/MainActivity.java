@@ -139,6 +139,7 @@ public class MainActivity extends Activity {
         });
 
         setContentView(webView);
+        cleanupOldCameraFiles();
         startLocalServer();
 
         if (serverSocket != null) {
@@ -146,6 +147,29 @@ public class MainActivity extends Activity {
         } else {
             // 极端情况下端口全部被占用，退回 file://，至少页面还能打开。
             webView.loadUrl("file:///android_asset/www/index.html?app=1");
+        }
+    }
+
+    /**
+     * Camera captures are written to the cache only so the WebView can read
+     * them. Once a capture has been imported and compressed into IndexedDB, the
+     * temporary full-size JPEG is no longer needed. Clean stale files on launch
+     * (never the capture that may still be in flight in this session).
+     */
+    private void cleanupOldCameraFiles() {
+        try {
+            File dir = new File(getCacheDir(), "photos");
+            File[] files = dir.listFiles();
+            if (files == null) return;
+            long cutoff = System.currentTimeMillis() - 24L * 60L * 60L * 1000L;
+            for (File file : files) {
+                if (file.isFile() && file.lastModified() < cutoff) {
+                    //noinspection ResultOfMethodCallIgnored
+                    file.delete();
+                }
+            }
+        } catch (Exception ignored) {
+            // Cache cleanup is best-effort.
         }
     }
 
