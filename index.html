@@ -6,7 +6,21 @@
 <title>幸运机 · 把努力摇成好运</title>
 <meta name="description" content="幸运机：写下今日任务，完成即可获得摇奖券，摇出 777、水果和三连好运，还能听到金币落袋的声音。">
 <meta name="theme-color" content="#0d0912">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
+<script>
+(function () {
+  var root = document.documentElement;
+  var theme = 'dark';
+  try {
+    var saved = JSON.parse(localStorage.getItem('lucky-study-machine.v1') || 'null');
+    if (saved && saved.theme === 'light') theme = 'light';
+  } catch (err) {}
+  root.classList.add(theme === 'light' ? 'theme-light' : 'theme-dark');
+  try {
+    if (window.LuckyAndroid || location.search.indexOf('app=1') >= 0) root.classList.add('is-android');
+  } catch (err) {}
+})();
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="幸运机">
@@ -20,7 +34,7 @@
 <meta property="og:description" content="写下今日任务，完成获得摇奖券，摇出 777 和水果好运。">
 <meta property="og:image" content="https://wangji330330-ops.github.io/115/assets/icon-512.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="assets/style.css?v=8">
+<link rel="stylesheet" href="assets/style.css?v=9">
 </head>
 <body>
 <div class="ambient" aria-hidden="true">
@@ -67,6 +81,15 @@
         <svg class="sound-off-icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M4 9.5v5h3.4L12 18V6L7.4 9.5H4Z" fill="currentColor"/>
           <path d="m16 9.5 4 5m0-5-4 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="切换到亮色主题" title="切换主题">
+        <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.1" fill="none" stroke="currentColor" stroke-width="1.8"/>
+          <path d="M12 2.3v2M12 19.7v2M2.3 12h2M19.7 12h2M5.1 5.1l1.4 1.4M17.5 17.5l1.4 1.4M18.9 5.1l-1.4 1.4M6.5 17.5l-1.4 1.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+        <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20.2 14.5A8.3 8.3 0 0 1 9.5 3.8a8.6 8.6 0 1 0 10.7 10.7Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
         </svg>
       </button>
       <button class="sound-toggle settings-toggle" id="settingsBtn" type="button" aria-label="打开设置" aria-haspopup="dialog" aria-expanded="false" aria-controls="settingsLayer" title="设置">
@@ -245,7 +268,7 @@
       <section class="settings-section" aria-labelledby="settingsVersionHead">
         <div class="settings-section-head">
           <h3 id="settingsVersionHead"><span aria-hidden="true">✦</span> 版本更新</h3>
-          <span class="version-chip" id="currentVersionChip">v1.3.0</span>
+          <span class="version-chip" id="currentVersionChip">v1.4.0</span>
         </div>
         <div class="update-box">
           <div class="update-top">
@@ -330,6 +353,13 @@
           </div>
           <button class="settings-secondary" id="importBtn" type="button">导入</button>
         </div>
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <strong>打卡照片</strong>
+            <p id="photoStorageInfo">照片会压缩后只保存在本机，不上传。</p>
+          </div>
+          <span class="version-chip" id="photoStorageChip">—</span>
+        </div>
         <div class="settings-row settings-path-row">
           <div class="settings-row-copy">
             <strong>保存路径</strong>
@@ -356,7 +386,7 @@
       </section>
 
       <footer class="settings-foot">
-        <span id="settingsBuild">v1.3.0 · 本机数据</span>
+        <span id="settingsBuild">v1.4.0 · 本机数据</span>
         <button id="settingsDoneBtn" type="button">完成</button>
       </footer>
     </div>
@@ -414,8 +444,29 @@
         <p class="calendar-summary" id="calendarDaySummary">完成 0 项 · 摇奖 0 次</p>
         <ul class="calendar-task-list" id="calendarTaskList"></ul>
         <p class="calendar-day-empty" id="calendarDayEmpty">这一天还没有记录。</p>
+        <div class="calendar-day-foot">
+          <button class="calendar-show-all" id="calendarShowAll" type="button" hidden>
+            全部 <span id="calendarShowAllCount">0</span> <span aria-hidden="true">›</span>
+          </button>
+        </div>
       </aside>
     </div>
+  </section>
+</div>
+
+<div class="calendar-all-layer" id="calendarAllLayer" hidden>
+  <div class="calendar-all-backdrop" data-close-calendar-all></div>
+  <section class="calendar-all-modal" id="calendarAllModal" role="dialog" aria-modal="true" aria-labelledby="calendarAllHeading" tabindex="-1">
+    <header class="calendar-all-head">
+      <div>
+        <p class="eyebrow">ALL TASKS</p>
+        <h2 id="calendarAllHeading">全部任务</h2>
+        <p class="calendar-all-sub" id="calendarAllSub">现在</p>
+      </div>
+      <button class="calendar-close" id="calendarAllClose" type="button" aria-label="关闭全部任务">×</button>
+    </header>
+    <ul class="calendar-all-list" id="calendarAllList"></ul>
+    <p class="calendar-day-empty" id="calendarAllEmpty" hidden>这一天还没有任务。</p>
   </section>
 </div>
 
@@ -456,6 +507,6 @@
 <p class="sr-only" id="srStatus" role="status" aria-live="polite"></p>
 <noscript><div class="noscript-note">这台老虎机需要开启 JavaScript 才能摇起来。</div></noscript>
 
-<script src="assets/app.js?v=8" defer></script>
+<script src="assets/app.js?v=9" defer></script>
 </body>
 </html>

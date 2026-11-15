@@ -196,15 +196,15 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.3.0';
-  const APP_VERSION_CODE = 8;
+  const APP_VERSION = '1.4.0';
+  const APP_VERSION_CODE = 9;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '任务完成改为拍照打卡：点任务或相机，拍照 / 相册选择后领券',
-    '打卡照片保存在本机，学习日历可以回看照片和打卡标记',
-    '日历任务框住不溢出；Daily Record 只显示“现在 / N天前”',
-    '修复快速点摇一摇、打开设置时偶发闪动',
-    '保留循环任务、04:00 刷新、音量提升和删除选择'
+    '奖励已领取的任务再次完成时不再要求拍照',
+    '日历只展示前 3 项，右下角「全部」可查看完整清单',
+    '新增音效旁的太阳/月亮按钮，可切换亮色与深色主题',
+    '安卓版关闭高耗能背景动画和模糊，减少掉帧',
+    '打卡照片压缩到 1280px，只存本机并在设置里显示占用；不参与 JSON 备份'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -397,7 +397,7 @@
       const width = bitmap.width || bitmap.naturalWidth;
       const height = bitmap.height || bitmap.naturalHeight;
       if (!width || !height) throw new Error('bad-image');
-      const maxSide = 1600;
+      const maxSide = 1280;
       const scale = Math.min(1, maxSide / Math.max(width, height));
       const canvas = document.createElement('canvas');
       canvas.width = Math.max(1, Math.round(width * scale));
@@ -412,7 +412,7 @@
         canvas.toBlob(function (blob) {
           if (blob) resolve(blob);
           else reject(new Error('photo-encode-error'));
-        }, 'image/jpeg', 0.82);
+        }, 'image/jpeg', 0.8);
       });
     });
   }
@@ -430,6 +430,53 @@
         reject(new Error('image-decode-error'));
       };
       image.src = url;
+    });
+  }
+
+  function getPhotoStorageStats() {
+    return openPhotoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        const transaction = db.transaction(PHOTO_STORE, 'readonly');
+        const store = transaction.objectStore(PHOTO_STORE);
+        let count = 0;
+        let bytes = 0;
+        const request = store.openCursor();
+        request.onsuccess = function () {
+          const cursor = request.result;
+          if (!cursor) {
+            resolve({ count: count, bytes: bytes });
+            return;
+          }
+          count += 1;
+          if (cursor.value && cursor.value.blob) bytes += cursor.value.blob.size || 0;
+          cursor.continue();
+        };
+        request.onerror = function () {
+          reject(request.error || new Error('photo-stats-error'));
+        };
+      });
+    });
+  }
+
+  function renderPhotoStorageInfo() {
+    if (!el.photoStorageInfo) return;
+    getPhotoStorageStats().then(function (stats) {
+      const count = stats.count;
+      const bytes = stats.bytes;
+      if (!count) {
+        el.photoStorageInfo.textContent = '还没有打卡照片。照片只保存压缩副本，不上传。';
+        if (el.photoStorageChip) el.photoStorageChip.textContent = '0 张';
+        return;
+      }
+      const size = bytes >= 1048576
+        ? (bytes / 1048576).toFixed(1) + ' MB'
+        : Math.max(1, Math.round(bytes / 1024)) + ' KB';
+      el.photoStorageInfo.textContent = '已存 ' + count + ' 张压缩照片 · 约 ' + size
+        + '，不上传，也不进 JSON 备份。';
+      if (el.photoStorageChip) el.photoStorageChip.textContent = count + ' 张';
+    }).catch(function () {
+      el.photoStorageInfo.textContent = '照片只保存在本机，不一定能进入浏览器备份。';
+      if (el.photoStorageChip) el.photoStorageChip.textContent = '—';
     });
   }
 
@@ -461,6 +508,7 @@
       totalStars: 0,
       history: {},
       sound: true,
+      theme: 'dark',
       updatedAt: 0
     };
   }
@@ -625,6 +673,7 @@
       : 0;
     fresh.history = sanitizeHistory(raw.history);
     fresh.sound = raw.sound !== false;
+    fresh.theme = raw.theme === 'light' ? 'light' : 'dark';
     fresh.routines = sanitizeRoutines(raw.routines);
     fresh.scheduled = sanitizeScheduled(raw.scheduled);
     fresh.planSkips = sanitizePlanSkips(raw.planSkips);
@@ -1053,6 +1102,7 @@
     totalStars: $('#totalStars'),
     apkLink: $('#apkLink'),
     soundToggle: $('#soundToggle'),
+    themeToggle: $('#themeToggle'),
     cabinet: $('#cabinet'),
     reelWindow: $('#reelWindow'),
     reels: $$('.reel'),
@@ -1116,6 +1166,8 @@
     importFile: $('#importFile'),
     savePathText: $('#savePathText'),
     savePathNote: $('#savePathNote'),
+    photoStorageInfo: $('#photoStorageInfo'),
+    photoStorageChip: $('#photoStorageChip'),
     choosePathBtn: $('#choosePathBtn'),
     clearDataBtn: $('#clearDataBtn'),
     confirmLayer: $('#confirmLayer'),
@@ -1146,6 +1198,14 @@
     calendarDaySummary: $('#calendarDaySummary'),
     calendarTaskList: $('#calendarTaskList'),
     calendarDayEmpty: $('#calendarDayEmpty'),
+    calendarShowAll: $('#calendarShowAll'),
+    calendarShowAllCount: $('#calendarShowAllCount'),
+    calendarAllLayer: $('#calendarAllLayer'),
+    calendarAllModal: $('#calendarAllModal'),
+    calendarAllClose: $('#calendarAllClose'),
+    calendarAllSub: $('#calendarAllSub'),
+    calendarAllList: $('#calendarAllList'),
+    calendarAllEmpty: $('#calendarAllEmpty'),
     photoSheetLayer: $('#photoSheetLayer'),
     photoSheet: $('#photoSheet'),
     photoSheetTask: $('#photoSheetTask'),
@@ -1201,6 +1261,8 @@
   let calendarSelectedKey = todayKey();
   let calendarLastFocus = null;
   let calendarCloseTimer = 0;
+  let calendarAllLastFocus = null;
+  let calendarAllCloseTimer = 0;
   let photoTaskId = null;
   let photoLastFocus = null;
   let photoCloseTimer = 0;
@@ -1321,6 +1383,31 @@
     el.soundToggle.title = on ? '音效已开启，点击关闭' : '音效已关闭，点击开启';
   }
 
+  function renderThemeToggle() {
+    if (!el.themeToggle) return;
+    const light = state.theme === 'light';
+    el.themeToggle.setAttribute('aria-pressed', String(light));
+    el.themeToggle.setAttribute('aria-label', light ? '切换到深色主题' : '切换到亮色主题');
+    el.themeToggle.title = light ? '当前亮色主题，点击切到深色' : '当前深色主题，点击切到亮色';
+  }
+
+  function applyTheme(theme, persist) {
+    const light = theme === 'light';
+    state.theme = light ? 'light' : 'dark';
+    const root = document.documentElement;
+    root.classList.toggle('theme-light', light);
+    root.classList.toggle('theme-dark', !light);
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', light ? '#f3e6d4' : '#0d0912');
+    renderThemeToggle();
+    if (persist) saveState();
+  }
+
+  function toggleTheme() {
+    applyTheme(state.theme === 'light' ? 'dark' : 'light', true);
+    audio.ui();
+  }
+
   function renderHeaderStats() {
     el.streakDays.textContent = String(calcStreak());
     animateNumber(el.totalStars, state.totalStars);
@@ -1376,6 +1463,13 @@
       + '<path d="M4.5 8.5h3l1.3-2h6.4l1.3 2h3v10h-15z"/><circle cx="12" cy="13.2" r="3.2"/></svg>';
   }
 
+  function calendarPhotoIconMarkup() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'
+      + '<rect x="3.5" y="7" width="17" height="12" rx="2.2"/>'
+      + '<path d="M8.2 7 9.6 4.9h4.8L15.8 7"/>'
+      + '<circle cx="12" cy="13" r="3.1"/></svg>';
+  }
+
   function buildTaskItem(task) {
     const li = document.createElement('li');
     li.className = 'task-item' + (task.done ? ' is-done' : '');
@@ -1387,9 +1481,12 @@
     check.className = 'task-check';
     check.dataset.action = 'toggle';
     check.setAttribute('aria-pressed', String(task.done));
+    const quickComplete = !!task.photoId || !!task.rewarded;
     check.setAttribute(
       'aria-label',
-      task.done ? '标记为未完成：' + task.text : '拍照打卡完成任务：' + task.text
+      task.done
+        ? '标记为未完成：' + task.text
+        : (quickComplete ? '标记为完成：' + task.text : '拍照打卡完成任务：' + task.text)
     );
     check.textContent = '✓';
 
@@ -1466,7 +1563,9 @@
 
     li.title = task.done
       ? '点击任务可取消完成'
-      : (hasPhoto ? '点击任务即可完成（已有打卡照）' : '点击任务或相机，拍照打卡后完成');
+      : (hasPhoto
+        ? '点击任务即可完成（已有打卡照）'
+        : (task.rewarded ? '点击任务即可完成（奖励已领取，无需拍照）' : '点击任务或相机，拍照打卡后完成'));
     li.appendChild(check);
     li.appendChild(body);
     li.appendChild(tools);
@@ -1545,6 +1644,7 @@
         appVersionCode = Math.floor(nativeVersionCode);
       }
       document.body.classList.add('is-app');
+      document.documentElement.classList.add('is-android');
       document.documentElement.dataset.platform = 'android';
       $$('a[href$=".apk"]').forEach(function (link) {
         link.hidden = true;
@@ -1554,6 +1654,7 @@
     } else if (isAndroidApp) {
       appPlatform = 'android';
       document.body.classList.add('is-app');
+      document.documentElement.classList.add('is-android');
       document.documentElement.dataset.platform = 'android';
       $$('a[href$=".apk"]').forEach(function (link) {
         link.hidden = true;
@@ -2056,17 +2157,19 @@
   function handleSettingsKeydown(event) {
     const confirmOpen = el.confirmLayer && !el.confirmLayer.hidden;
     const photoViewerOpen = el.photoViewerLayer && !el.photoViewerLayer.hidden;
+    const calendarAllOpen = el.calendarAllLayer && !el.calendarAllLayer.hidden;
     const photoSheetOpen = el.photoSheetLayer && !el.photoSheetLayer.hidden;
     const calendarOpen = el.calendarLayer && !el.calendarLayer.hidden
       && !el.calendarLayer.style.pointerEvents;
     const settingsOpen = el.settingsLayer && !el.settingsLayer.hidden
       && !el.settingsLayer.classList.contains('is-closing');
-    if (!confirmOpen && !photoViewerOpen && !photoSheetOpen && !settingsOpen && !calendarOpen) return;
+    if (!confirmOpen && !photoViewerOpen && !calendarAllOpen && !photoSheetOpen && !settingsOpen && !calendarOpen) return;
 
     if (event.key === 'Escape') {
       event.preventDefault();
       if (confirmOpen) settleConfirm('cancel');
       else if (photoViewerOpen) closePhotoViewer();
+      else if (calendarAllOpen) closeCalendarAll();
       else if (photoSheetOpen) closePhotoSheet(true);
       else if (calendarOpen) closeCalendar();
       else closeSettings();
@@ -2078,9 +2181,11 @@
       ? el.confirmBox
       : (photoViewerOpen
         ? el.photoViewer
-        : (photoSheetOpen
-          ? el.photoSheet
-          : (calendarOpen ? el.calendarModal : el.settingsDrawer)));
+        : (calendarAllOpen
+          ? el.calendarAllModal
+          : (photoSheetOpen
+            ? el.photoSheet
+            : (calendarOpen ? el.calendarModal : el.settingsDrawer))));
     if (!scope) return;
     const nodes = focusableIn(scope);
     if (!nodes.length) return;
@@ -2254,6 +2359,7 @@
       totalStars: totalStars,
       history: sanitizeHistory(data.history),
       sound: data.sound !== false,
+      theme: data.theme === 'light' ? 'light' : 'dark',
       date: date,
       exportedAt: parsed && parsed.exportedAt ? String(parsed.exportedAt) : ''
     };
@@ -2272,6 +2378,8 @@
     state.totalStars = backup.totalStars;
     state.history = backup.history;
     state.sound = backup.sound;
+    state.theme = backup.theme;
+    applyTheme(state.theme, false);
     pruneScheduledPlans(today);
     ensurePlanInstances();
     audio.setEnabled(state.sound);
@@ -2615,6 +2723,7 @@
         task.photoId = photoId;
         task.photoAt = Date.now();
         task.photoDay = state.date;
+        renderPhotoStorageInfo();
         if (task.done) {
           saveState();
           renderTasks({ scrollTop: el.taskListWrap.scrollTop });
@@ -2689,6 +2798,7 @@
     document.body.classList.remove('photo-viewer-open');
     if (el.pageShell && 'inert' in el.pageShell) {
       el.pageShell.inert = !!((el.calendarLayer && !el.calendarLayer.hidden)
+        || (el.calendarAllLayer && !el.calendarAllLayer.hidden)
         || (el.photoSheetLayer && !el.photoSheetLayer.hidden)
         || (el.settingsLayer && !el.settingsLayer.hidden));
     }
@@ -2769,6 +2879,32 @@
     return Math.abs(diff) + '天前';
   }
 
+  function makeCalendarTaskItem(task, key) {
+    const li = document.createElement('li');
+    li.className = 'calendar-task-item' + (task.done ? ' is-done' : '');
+    const status = document.createElement('span');
+    status.className = 'calendar-task-status';
+    status.setAttribute('aria-hidden', 'true');
+    status.textContent = task.done ? '✓' : '';
+    const text = document.createElement('span');
+    text.className = 'calendar-task-text';
+    text.textContent = task.text;
+    li.appendChild(status);
+    li.appendChild(text);
+    if (task.done && task.photoId && task.photoDay === key) {
+      const photo = document.createElement('button');
+      photo.type = 'button';
+      photo.className = 'calendar-photo-btn';
+      photo.dataset.calendarPhoto = task.photoId;
+      photo.dataset.photoCaption = task.text + ' · ' + formatDateCN(key);
+      photo.setAttribute('aria-label', '查看打卡照片：' + task.text);
+      photo.title = '查看打卡照片';
+      photo.innerHTML = calendarPhotoIconMarkup();
+      li.appendChild(photo);
+    }
+    return li;
+  }
+
   function renderCalendarDayDetail(key) {
     const isToday = key === todayKey();
     const isFuture = key > todayKey();
@@ -2793,31 +2929,14 @@
     }
 
     while (el.calendarTaskList.firstChild) el.calendarTaskList.removeChild(el.calendarTaskList.firstChild);
-    tasks.forEach(function (task) {
-      const li = document.createElement('li');
-      li.className = 'calendar-task-item' + (task.done ? ' is-done' : '');
-      const status = document.createElement('span');
-      status.className = 'calendar-task-status';
-      status.setAttribute('aria-hidden', 'true');
-      status.textContent = task.done ? '✓' : '';
-      const text = document.createElement('span');
-      text.className = 'calendar-task-text';
-      text.textContent = task.text;
-      li.appendChild(status);
-      li.appendChild(text);
-      if (task.done && task.photoId && task.photoDay === key) {
-        const photo = document.createElement('button');
-        photo.type = 'button';
-        photo.className = 'calendar-photo-btn';
-        photo.dataset.calendarPhoto = task.photoId;
-        photo.dataset.photoCaption = task.text + ' · ' + formatDateCN(key);
-        photo.setAttribute('aria-label', '查看打卡照片：' + task.text);
-        photo.title = '查看打卡照片';
-        photo.innerHTML = cameraIconMarkup();
-        li.appendChild(photo);
-      }
-      el.calendarTaskList.appendChild(li);
+    tasks.slice(0, 3).forEach(function (task) {
+      el.calendarTaskList.appendChild(makeCalendarTaskItem(task, key));
     });
+    const hasMore = tasks.length > 3;
+    if (el.calendarShowAll) {
+      el.calendarShowAll.hidden = !hasMore;
+      if (el.calendarShowAllCount) el.calendarShowAllCount.textContent = String(tasks.length);
+    }
 
     el.calendarDayEmpty.hidden = tasks.length > 0;
     if (!tasks.length) {
@@ -2825,6 +2944,38 @@
         ? '这一天没有提前安排的日期任务。'
         : (isToday ? '还没有任务，去添加一件小事吧。' : '这一天没有留下任务记录。');
     }
+  }
+
+  function openCalendarAll() {
+    if (!el.calendarAllLayer) return;
+    const key = calendarSelectedKey;
+    const tasks = calendarDayTasks(key);
+    if (!tasks.length) return;
+    calendarAllLastFocus = document.activeElement;
+    if (el.calendarAllSub) el.calendarAllSub.textContent = relativeDayLabel(key) + ' · ' + tasks.length + ' 项任务';
+    while (el.calendarAllList.firstChild) el.calendarAllList.removeChild(el.calendarAllList.firstChild);
+    tasks.forEach(function (task) {
+      el.calendarAllList.appendChild(makeCalendarTaskItem(task, key));
+    });
+    if (el.calendarAllEmpty) el.calendarAllEmpty.hidden = true;
+    el.calendarAllLayer.hidden = false;
+    el.calendarAllLayer.style.pointerEvents = '';
+    document.body.classList.add('calendar-all-open');
+    window.requestAnimationFrame(function () {
+      el.calendarAllClose.focus({ preventScroll: true });
+    });
+  }
+
+  function closeCalendarAll() {
+    if (!el.calendarAllLayer || el.calendarAllLayer.hidden) return;
+    window.clearTimeout(calendarAllCloseTimer);
+    el.calendarAllLayer.hidden = true;
+    el.calendarAllLayer.style.pointerEvents = '';
+    document.body.classList.remove('calendar-all-open');
+    if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = !el.calendarLayer.hidden;
+    const target = calendarAllLastFocus && document.contains(calendarAllLastFocus)
+      ? calendarAllLastFocus : el.calendarShowAll;
+    if (target) target.focus({ preventScroll: true });
   }
 
   function renderCalendar() {
@@ -2887,6 +3038,7 @@
 
   function closeCalendar() {
     if (!el.calendarLayer || el.calendarLayer.hidden) return;
+    if (el.calendarAllLayer && !el.calendarAllLayer.hidden) closeCalendarAll();
     el.calendarLayer.classList.remove('is-open');
     el.calendarLayer.style.pointerEvents = 'none';
     document.body.classList.remove('calendar-open');
@@ -2941,6 +3093,7 @@
     state.totalStars = 0;
     state.history = {};
     await clearPhotoStore().catch(function () {});
+    renderPhotoStorageInfo();
     saveState();
     renderDate();
     renderTasks({ scrollTop: 0 });
@@ -3530,7 +3683,7 @@
     const previouslyDone = task.done;
 
     if (!task.done) {
-      if (!task.photoId) {
+      if (!task.photoId && !task.rewarded) {
         openPhotoSheet(task.id);
         return;
       }
@@ -3572,7 +3725,7 @@
         );
         showToast('打卡成功！+1 张摇奖券 · +' + TASK_REWARD.stars + ' 颗灵感星', 'win', 3200);
         announce('拍照打卡完成：' + task.text + '。获得一张摇奖券和 ' + TASK_REWARD.stars + ' 颗灵感星。');
-      } else {
+      } else if (task.photoId) {
         setResultCard(
           '✦ PHOTO AGAIN · 又打一次卡',
           '「' + (task.text.length > 34 ? task.text.slice(0, 34) + '…' : task.text) + '」又完成了一次。奖励之前已经领过，但照片和认真都还在。',
@@ -3582,6 +3735,16 @@
         );
         showToast('又打了一次卡。之前已经领过奖励，但这份认真依旧算数。', 'info', 3000);
         announce('任务再次打卡完成：' + task.text + '。奖励已领取。');
+      } else {
+        setResultCard(
+          '✦ TASK AGAIN · 又完成一次',
+          '「' + (task.text.length > 34 ? task.text.slice(0, 34) + '…' : task.text) + '」又完成了一次。奖励之前已经领过，这次不用再拍照。',
+          '每一次重新开始，都算数。',
+          '奖励已领取',
+          ['is-task']
+        );
+        showToast('又完成了一次。奖励已经领过，这次不用拍照。', 'info', 3000);
+        announce('任务再次完成：' + task.text + '。奖励已领取。');
       }
     } else {
       task.done = false;
@@ -3711,7 +3874,8 @@
 
   function resizeFx() {
     if (!fx.canvas || !fx.ctx) return;
-    fx.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const lowPower = document.documentElement.classList.contains('is-android');
+    fx.dpr = lowPower ? 1 : Math.min(window.devicePixelRatio || 1, 2);
     const width = window.innerWidth;
     const height = window.innerHeight;
     fx.canvas.width = Math.floor(width * fx.dpr);
@@ -3724,7 +3888,9 @@
   function burstAt(x, y, options) {
     if (!fx.ctx || prefersReducedMotion) return;
     const opts = options || {};
-    const count = opts.count == null ? 30 : opts.count;
+    const lowPower = document.documentElement.classList.contains('is-android');
+    const requested = opts.count == null ? 30 : opts.count;
+    const count = lowPower ? Math.min(72, Math.round(requested * 0.5)) : requested;
     if (count <= 0) return;
     const power = opts.power || 7;
     const spread = opts.spread == null ? Math.PI * 2 : opts.spread;
@@ -3911,6 +4077,7 @@
     });
 
     el.soundToggle.addEventListener('click', toggleSound);
+    el.themeToggle.addEventListener('click', toggleTheme);
 
     document.addEventListener('keydown', function (event) {
       if (event.key === 'Tab' || event.key.indexOf('Arrow') === 0) {
@@ -4062,6 +4229,16 @@
       if (!photo) return;
       openPhotoViewer(photo.dataset.calendarPhoto, photo.dataset.photoCaption || '');
     });
+    el.calendarShowAll.addEventListener('click', openCalendarAll);
+    el.calendarAllClose.addEventListener('click', closeCalendarAll);
+    $$('[data-close-calendar-all]').forEach(function (node) {
+      node.addEventListener('click', closeCalendarAll);
+    });
+    el.calendarAllList.addEventListener('click', function (event) {
+      const photo = event.target.closest('[data-calendar-photo]');
+      if (!photo) return;
+      openPhotoViewer(photo.dataset.calendarPhoto, photo.dataset.photoCaption || '');
+    });
 
     el.photoTakeBtn.addEventListener('click', function () { triggerPhotoPicker('camera'); });
     el.photoPickBtn.addEventListener('click', function () { triggerPhotoPicker('gallery'); });
@@ -4153,6 +4330,7 @@
 
   function init() {
     initPlatformInfo();
+    applyTheme(state.theme, false);
     prepareLoadedDay();
     renderBulbs();
     renderDate();
@@ -4163,6 +4341,7 @@
     initReels();
     renderTasks({ scrollTop: 0 });
     renderPlanManager();
+    renderPhotoStorageInfo();
     bindEvents();
     setupFx();
     setupDebugApi();

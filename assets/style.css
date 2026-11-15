@@ -3794,3 +3794,524 @@ body.photo-viewer-open { overflow: hidden; }
 .photo-tag { color: #3f8c70; }
 .result-card.is-photo { border-color: rgba(109, 218, 193, .32); }
 .calendar-day-head h3 { font-size: 20px; }
+
+/* ---------- v1.3.1 日历三行 + 全部任务 ---------- */
+.calendar-day-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-task-list {
+  max-height: none;
+  overflow: visible;
+  gap: 6px;
+}
+
+.calendar-task-item {
+  padding: 9px 9px;
+  gap: 8px;
+  border-radius: 9px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.calendar-task-status {
+  width: 17px;
+  height: 17px;
+  flex-basis: 17px;
+  font-size: 10px;
+}
+
+.calendar-photo-btn {
+  align-self: center;
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+  transform: none;
+  line-height: 0;
+}
+
+.calendar-photo-btn svg {
+  width: 15px;
+  height: 15px;
+  margin: auto;
+  transform: none;
+}
+
+.calendar-day-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+.calendar-show-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 25px;
+  padding: 0 9px;
+  border: 1px solid rgba(135, 88, 55, .18);
+  border-radius: 999px;
+  color: #93613e;
+  background: rgba(255, 255, 255, .4);
+  font-size: 8.5px;
+  font-weight: 650;
+}
+
+.calendar-show-all:hover {
+  border-color: rgba(135, 88, 55, .32);
+  color: #6f402d;
+  background: rgba(255, 255, 255, .72);
+}
+
+.calendar-all-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 370;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.calendar-all-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 2, 6, .55);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.calendar-all-modal {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 94vw);
+  max-height: 86vh;
+  max-height: 86dvh;
+  overflow: hidden;
+  border: 1px solid rgba(255, 248, 235, .7);
+  border-radius: 22px;
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse 75% 50% at 8% 0%, rgba(255, 255, 255, .6), transparent 65%),
+    linear-gradient(152deg, #fffaf1, #f8e8d1);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .55);
+}
+
+.calendar-all-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 18px 13px;
+  border-bottom: 1px dashed rgba(119, 75, 55, .16);
+}
+
+.calendar-all-head h2 {
+  margin-top: 3px;
+  color: #3b2030;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: .05em;
+}
+
+.calendar-all-sub {
+  margin-top: 3px;
+  color: #a18778;
+  font-size: 9.5px;
+}
+
+.calendar-all-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 12px 15px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(135, 93, 63, .22) transparent;
+}
+
+.calendar-all-list .calendar-task-item {
+  font-size: 11.5px;
+  padding: 10px 10px;
+}
+
+.calendar-all-list .calendar-task-text {
+  line-height: 1.55;
+}
+
+body.calendar-all-open { overflow: hidden; }
+
+@media (max-width: 760px) {
+  .calendar-day-panel { min-height: 0; padding: 12px; }
+  .calendar-task-item { font-size: 11px; }
+  .calendar-all-layer { align-items: flex-end; padding: 8px; }
+  .calendar-all-modal {
+    width: 100%;
+    max-height: 82vh;
+    max-height: 82dvh;
+    border-radius: 20px;
+  }
+  .calendar-all-head { padding: 15px 14px 11px; }
+  .calendar-all-head h2 { font-size: 20px; }
+  .calendar-all-list { padding: 10px 12px 14px; }
+  .calendar-all-list .calendar-task-item { font-size: 11.5px; }
+}
+
+/* ---------- 主题切换按钮 ---------- */
+.theme-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 231, 189, .12);
+  border-radius: 50%;
+  background: rgba(255, 248, 235, .045);
+  color: rgba(255, 238, 210, .7);
+  transition: background .2s ease, color .2s ease, border-color .2s ease, transform .2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.theme-toggle:hover {
+  border-color: rgba(255, 217, 137, .35);
+  background: rgba(255, 248, 235, .09);
+  color: var(--gold-bright);
+  transform: translateY(-1px);
+}
+
+.theme-toggle svg { width: 18px; height: 18px; }
+.theme-toggle .theme-icon-moon { display: none; }
+.theme-toggle .theme-icon-sun { display: block; }
+html.theme-light .theme-toggle .theme-icon-sun { display: none; }
+html.theme-light .theme-toggle .theme-icon-moon { display: block; }
+
+@media (max-width: 760px) {
+  .theme-toggle { width: 38px; height: 38px; }
+  .theme-toggle svg { width: 17px; height: 17px; }
+}
+
+/* ---------- 亮色主题 ---------- */
+html.theme-light {
+  color-scheme: light;
+  background: #f3e6d4;
+}
+
+html.theme-light body {
+  color: #3b2030;
+  background:
+    radial-gradient(ellipse 80% 55% at 12% -8%, rgba(239, 177, 88, .3), transparent 62%),
+    radial-gradient(ellipse 65% 50% at 96% 8%, rgba(212, 131, 102, .16), transparent 66%),
+    radial-gradient(ellipse 90% 70% at 48% 115%, rgba(231, 202, 166, .55), transparent 72%),
+    linear-gradient(160deg, #fbf3e6 0%, #f3e6d4 52%, #eeddc6 100%);
+  text-rendering: auto;
+}
+
+html.theme-light .ambient { display: none; }
+
+html.theme-light body::after {
+  background:
+    linear-gradient(180deg, rgba(255, 250, 241, .08), transparent 20%, transparent 76%, rgba(117, 78, 42, .12)),
+    radial-gradient(ellipse at center, transparent 55%, rgba(117, 78, 42, .1) 100%);
+}
+
+html.theme-light .brand-title { color: #3a1f2b; }
+html.theme-light .brand-eyebrow { color: #a56b2c; }
+html.theme-light .header-motto { color: rgba(91, 58, 50, .56); }
+
+html.theme-light .stat-pill {
+  border-color: rgba(115, 75, 55, .15);
+  background: rgba(255, 250, 242, .65);
+  color: #76554d;
+}
+
+html.theme-light .stat-pill strong { color: #9b5d1f; }
+html.theme-light .stat-icon { color: #a56b2c; }
+html.theme-light .stat-chevron { color: rgba(139, 88, 48, .6); }
+html.theme-light .stat-pill-button:hover {
+  border-color: rgba(137, 85, 47, .28);
+  background: rgba(255, 255, 255, .88);
+}
+
+html.theme-light .apk-link {
+  border-color: rgba(154, 100, 39, .24);
+  color: #7d4a29;
+  background: rgba(255, 245, 226, .58);
+}
+html.theme-light .apk-link small { color: rgba(125, 74, 41, .62); }
+html.theme-light .apk-link:hover {
+  border-color: rgba(154, 100, 39, .42);
+  background: rgba(255, 249, 235, .85);
+}
+
+html.theme-light .sound-toggle,
+html.theme-light .theme-toggle,
+html.theme-light .settings-toggle {
+  border-color: rgba(115, 75, 55, .14);
+  color: #76544d;
+  background: rgba(255, 250, 242, .62);
+  backdrop-filter: none;
+}
+
+html.theme-light .sound-toggle:hover,
+html.theme-light .theme-toggle:hover,
+html.theme-light .settings-toggle:hover {
+  border-color: rgba(137, 85, 47, .3);
+  color: #8a4a20;
+  background: rgba(255, 255, 255, .9);
+}
+
+html.theme-light .settings-label { color: #705149; }
+html.theme-light .settings-toggle:hover .settings-label { color: #8a4a20; }
+html.theme-light .settings-newdot { border-color: #f7ecdc; }
+
+html.theme-light .site-footer {
+  border-top-color: rgba(100, 65, 45, .14);
+  color: rgba(91, 62, 51, .48);
+}
+html.theme-light .site-footer a {
+  color: #8d5a2d;
+  text-decoration-color: rgba(141, 90, 45, .25);
+}
+html.theme-light .site-footer a:hover { color: #6f402a; }
+html.theme-light .footer-seven {
+  border-color: rgba(137, 85, 47, .25);
+  color: #8d5a2d;
+}
+
+html.theme-light .task-card {
+  border-color: rgba(255, 255, 255, .72);
+  box-shadow: 0 25px 60px -38px rgba(91, 52, 33, .45);
+}
+
+html.theme-light .settings-backdrop { background: rgba(54, 33, 26, .38); }
+html.theme-light .settings-drawer {
+  border-left-color: rgba(115, 75, 55, .18);
+  background:
+    radial-gradient(ellipse 120% 38% at 100% 0%, rgba(238, 190, 115, .3), transparent 68%),
+    linear-gradient(160deg, #fffaf1 0%, #f8e9d4 62%, #f2dfc7 100%);
+  box-shadow: -25px 0 70px rgba(85, 52, 32, .24);
+}
+html.theme-light .settings-head { border-bottom-color: rgba(115, 75, 55, .14); }
+html.theme-light .settings-head h2 { color: #3a2030; }
+html.theme-light .settings-head .eyebrow { color: #a56b2c; }
+html.theme-light .settings-sub { color: #987d70; }
+html.theme-light .settings-close {
+  border-color: rgba(115, 75, 55, .16);
+  color: #8d685b;
+  background: rgba(255, 255, 255, .45);
+}
+html.theme-light .settings-close:hover {
+  border-color: rgba(137, 85, 47, .3);
+  color: #703d38;
+  background: rgba(255, 255, 255, .86);
+}
+
+html.theme-light .settings-section {
+  border-color: rgba(115, 75, 55, .12);
+  background: rgba(255, 252, 246, .55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55);
+}
+html.theme-light .settings-section-head h3 { color: #50303a; }
+html.theme-light .settings-section-head h3 > span { color: #b0782c; }
+html.theme-light .version-chip {
+  border-color: rgba(154, 100, 39, .22);
+  color: #8c5b2d;
+  background: rgba(255, 243, 216, .52);
+}
+html.theme-light .update-box {
+  border-color: rgba(115, 75, 55, .11);
+  background: rgba(255, 255, 255, .46);
+}
+html.theme-light .update-top strong { color: #4a2b33; }
+html.theme-light #updateMeta { color: #967d70; }
+html.theme-light .update-badge {
+  border-color: rgba(115, 75, 55, .15);
+  color: #8b6a5c;
+  background: rgba(255, 255, 255, .4);
+}
+html.theme-light .update-badge.is-new {
+  border-color: rgba(186, 126, 43, .28);
+  color: #8f5c1f;
+  background: rgba(255, 231, 181, .4);
+}
+html.theme-light .update-badge.is-latest {
+  border-color: rgba(54, 145, 117, .22);
+  color: #357b64;
+  background: rgba(213, 242, 229, .45);
+}
+html.theme-light .release-notes li { color: #75594f; }
+html.theme-light .release-notes li::before { color: #b0782c; }
+html.theme-light #updateNote,
+html.theme-light .settings-note { color: #987d70; }
+
+html.theme-light .settings-row + .settings-row { border-top-color: rgba(115, 75, 55, .1); }
+html.theme-light .settings-row-copy strong { color: #4b2b35; }
+html.theme-light .settings-row-copy p { color: #8d7266; }
+html.theme-light .settings-row-copy p.path-value { color: #976a35; }
+html.theme-light .settings-secondary,
+html.theme-light .settings-text-btn {
+  border-color: rgba(115, 75, 55, .18);
+  color: #6d443b;
+  background: rgba(255, 255, 255, .46);
+}
+html.theme-light .settings-secondary:hover:not(:disabled) {
+  border-color: rgba(137, 85, 47, .32);
+  color: #8a4a20;
+  background: rgba(255, 255, 255, .88);
+}
+html.theme-light .settings-text-btn { color: #97622c; }
+html.theme-light .settings-file-link {
+  border-color: rgba(154, 100, 39, .2);
+  color: #6d443b;
+  background: rgba(255, 255, 255, .34);
+}
+html.theme-light .settings-file-link small { color: #a0733a; }
+html.theme-light .settings-file-link:hover {
+  border-color: rgba(154, 100, 39, .38);
+  color: #8a4a20;
+  background: rgba(255, 255, 255, .72);
+}
+html.theme-light .settings-danger-row { border-top-color: rgba(176, 79, 67, .16); }
+html.theme-light .settings-danger-row .settings-row-copy strong { color: #a34c44; }
+html.theme-light .settings-danger-btn {
+  border-color: rgba(176, 79, 67, .24);
+  color: #a34c44;
+  background: rgba(186, 70, 60, .055);
+}
+html.theme-light .settings-danger-btn:hover {
+  border-color: rgba(176, 79, 67, .42);
+  background: rgba(186, 70, 60, .1);
+}
+html.theme-light .settings-foot { color: #a58b7d; }
+html.theme-light .settings-foot button {
+  border-color: rgba(115, 75, 55, .17);
+  color: #6d443b;
+  background: rgba(255, 255, 255, .42);
+}
+html.theme-light .settings-foot button:hover {
+  border-color: rgba(137, 85, 47, .3);
+  color: #8a4a20;
+}
+html.theme-light .settings-scroll { scrollbar-color: rgba(135, 93, 63, .27) transparent; }
+
+html.theme-light .plan-cycle-tabs {
+  border-color: rgba(115, 75, 55, .12);
+  background: rgba(255, 255, 255, .34);
+}
+html.theme-light .plan-cycle-btn { color: #927469; }
+html.theme-light .plan-cycle-btn:hover { color: #633e35; }
+html.theme-light .plan-cycle-btn.is-active {
+  color: #7c4b1f;
+  background: rgba(232, 179, 92, .2);
+  box-shadow: inset 0 0 0 1px rgba(154, 100, 39, .18);
+}
+html.theme-light .plan-text-input,
+html.theme-light .plan-date-input {
+  border-color: rgba(115, 75, 55, .17);
+  color: #3b2030;
+  background: rgba(255, 255, 255, .5);
+}
+html.theme-light .plan-text-input::placeholder { color: #aa9082; }
+html.theme-light .plan-text-input:focus,
+html.theme-light .plan-date-input:focus {
+  border-color: rgba(154, 100, 39, .45);
+  background: rgba(255, 255, 255, .86);
+}
+html.theme-light .plan-date-input { color-scheme: light; }
+html.theme-light .plan-hint { color: #9a7e72; }
+html.theme-light .plan-item {
+  border-color: rgba(115, 75, 55, .1);
+  background: rgba(255, 255, 255, .42);
+}
+html.theme-light .plan-item-copy strong { color: #4a2c34; }
+html.theme-light .plan-item-copy p { color: #96786c; }
+html.theme-light .plan-item-badge {
+  border-color: rgba(154, 100, 39, .18);
+  color: #996a31;
+}
+html.theme-light .plan-item-remove { color: #b06056; }
+html.theme-light .plan-item-remove:hover { color: #9b3f3f; background: rgba(176, 79, 67, .08); }
+html.theme-light .plan-empty { border-top-color: rgba(115, 75, 55, .12); color: #a38b7e; }
+
+/* Android: remove the expensive ambient/paint effects that make WebView drop frames. */
+html.is-android .ambient,
+html.is-android body::after { display: none; }
+html.is-android .orb,
+html.is-android .noise { display: none; }
+html.is-android .brand-mark { animation: none !important; }
+html.is-android .bulb { animation: none !important; opacity: .82; }
+html.is-android .spin-button-shine { display: none; }
+html.is-android .reel.is-spinning .reel-track { filter: none; }
+html.is-android .settings-backdrop,
+html.is-android .calendar-backdrop,
+html.is-android .calendar-all-backdrop,
+html.is-android .photo-sheet-backdrop,
+html.is-android .photo-viewer-backdrop {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+html.is-android .settings-backdrop { background: rgba(5, 2, 8, .82); }
+html.is-android .calendar-backdrop { background: rgba(4, 2, 6, .82); }
+html.is-android .calendar-all-backdrop { background: rgba(4, 2, 6, .78); }
+html.is-android .photo-sheet-backdrop { background: rgba(5, 2, 8, .84); }
+html.is-android .photo-viewer-backdrop { background: rgba(3, 2, 5, .94); }
+html.is-android .sound-toggle,
+html.is-android .theme-toggle { backdrop-filter: none; }
+html.is-android .toast { backdrop-filter: none; -webkit-backdrop-filter: none; }
+html.is-android body { text-rendering: auto; }
+
+/* Readable calendar rows requested in v1.4.0 */
+.calendar-task-item {
+  padding: 10px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.calendar-task-item.is-done { color: #8d776d; }
+.calendar-task-status { width: 18px; height: 18px; flex-basis: 18px; font-size: 10.5px; }
+.calendar-photo-btn { width: 28px; height: 28px; flex-basis: 28px; }
+.calendar-photo-btn svg { width: 16px; height: 16px; }
+.calendar-show-all { height: 28px; padding: 0 10px; font-size: 9.5px; }
+.calendar-all-modal { width: min(620px, 94vw); }
+.calendar-all-head h2 { font-size: 24px; }
+.calendar-all-list .calendar-task-item { font-size: 12.5px; padding: 11px 11px; }
+.calendar-all-list .calendar-task-status { width: 19px; height: 19px; flex-basis: 19px; }
+.calendar-all-list .calendar-photo-btn { width: 29px; height: 29px; flex-basis: 29px; }
+.calendar-all-list .calendar-photo-btn svg { width: 17px; height: 17px; }
+
+html.theme-light .task-text { color: #3f2731; }
+html.theme-light .task-meta { color: #94786a; }
+html.theme-light .task-item.is-done .task-text { color: #927c71; }
+html.theme-light .site-footer { color: rgba(80, 52, 43, .62); }
+
+html.theme-dark { color-scheme: dark; }
+
+html.theme-light .confirm-box {
+  border-color: rgba(255, 248, 235, .8);
+  color: #3b2030;
+  background:
+    radial-gradient(ellipse 100% 60% at 100% 0%, rgba(238, 190, 115, .22), transparent 65%),
+    linear-gradient(155deg, #fffaf1, #f5e3c9);
+  box-shadow: 0 28px 70px rgba(76, 45, 27, .3), inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+html.theme-light .confirm-box h3 { color: #3a2030; }
+html.theme-light .confirm-message { color: #80655b; }
+html.theme-light .confirm-box .eyebrow { color: #a56b2c; }
+html.theme-light .confirm-mark {
+  border-color: rgba(154, 100, 39, .25);
+  color: #a56b2c;
+  background: rgba(255, 255, 255, .4);
+}
+html.theme-light .confirm-box.is-danger .confirm-mark {
+  border-color: rgba(176, 79, 67, .26);
+  color: #a64a42;
+  background: rgba(186, 70, 60, .07);
+}
+html.theme-light .confirm-actions { border-top-color: rgba(115, 75, 55, .12); }
