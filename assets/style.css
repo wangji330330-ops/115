@@ -4401,5 +4401,6 @@ html.theme-light .confirm-actions { border-top-color: rgba(115, 75, 55, .12); }
 .calendar-photo-btn img { display: none; }
 
 /* Header 7 sits 3px lower; the 777 lockup gets exactly 2px between glyphs. */
-.brand-mark > span { transform: translateY(2px); }
-.machine-logo b { letter-spacing: 2px; margin-right: -2px; }
+/* v1.4.3 optical tweaks are APK-only; the web version keeps the original alignment. */
+html.is-android .brand-mark > span { transform: translateY(2px); }
+html.is-android .machine-logo b { letter-spacing: 2px; margin-right: -2px; }
