@@ -196,15 +196,14 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.2.0';
-  const APP_VERSION_CODE = 5;
+  const APP_VERSION = '1.2.1';
+  const APP_VERSION_CODE = 6;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '改名为“幸运机”，保留 777 封面和原有学习玩法',
-    '新增每日 / 每周 / 每月循环任务与指定日期任务',
-    '任务统一在每天 04:00 刷新，周任务周一换新、月任务每月 1 日换新',
-    '点击连胜可打开学习日历，查看每天的任务、完成情况和灵感',
-    '点击灵感数字只播放数字刷新效果；顶部提示做了去重'
+    '默认音量整体调大约 4 倍（约 20 → 80），音效更响亮清楚',
+    '保留“幸运机”名称、每日 / 每周 / 每月任务和指定日期任务',
+    '任务每天 04:00 刷新；学习日历和灵感数字点击继续保留',
+    '顶部提示去重、清除已完成确认和 280ms 骰子回正'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -674,8 +673,16 @@
   }
 
   /* ========== 音频引擎 ========== */
+  // The synthesized effects have deliberately tiny per-sound gains. Send them
+  // through a louder fixed bus so the default output is about four times the
+  // old level (roughly the 20 -> 80 step the user asked for), while keeping the
+  // mute switch and each sound's envelope intact.
+  const AUDIO_SFX_BOOST = 3.3;
+  const AUDIO_MASTER_LEVEL = 0.95;
+
   function SoundKit() {
     this.ctx = null;
+    this.bus = null;
     this.master = null;
     this.noiseBuffer = null;
     this.enabled = state.sound !== false;
@@ -688,8 +695,11 @@
     if (!AC) return false;
     try {
       this.ctx = new AC();
+      this.bus = this.ctx.createGain();
+      this.bus.gain.value = AUDIO_SFX_BOOST;
       this.master = this.ctx.createGain();
-      this.master.gain.value = this.enabled ? 0.78 : 0;
+      this.master.gain.value = this.enabled ? AUDIO_MASTER_LEVEL : 0;
+      this.bus.connect(this.master);
       this.master.connect(this.ctx.destination);
       const length = Math.floor(this.ctx.sampleRate * 0.8);
       const buffer = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
@@ -719,7 +729,7 @@
     if (this.master && this.ctx) {
       const now = this.ctx.currentTime;
       this.master.gain.cancelScheduledValues(now);
-      this.master.gain.setTargetAtTime(enabled ? 0.78 : 0, now, 0.025);
+      this.master.gain.setTargetAtTime(enabled ? AUDIO_MASTER_LEVEL : 0, now, 0.025);
     }
     if (enabled) this.unlock();
   };
@@ -741,7 +751,7 @@
     gain.gain.exponentialRampToValueAtTime(gainValue, now + attack);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     osc.connect(gain);
-    gain.connect(this.master);
+    gain.connect(this.bus);
     osc.start(now);
     osc.stop(now + duration + 0.03);
   };
@@ -764,7 +774,7 @@
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     source.connect(filter);
     filter.connect(gain);
-    gain.connect(this.master);
+    gain.connect(this.bus);
     source.start(now);
     source.stop(now + duration + 0.02);
   };

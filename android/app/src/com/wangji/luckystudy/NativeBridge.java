@@ -148,7 +148,7 @@ public class NativeBridge {
 
     /** Keeps the JS fallback versions in one place without a generated BuildConfig. */
     private static final class BuildConfigVersion {
-        static final int FALLBACK_CODE = 5;
-        static final String FALLBACK_NAME = "1.2.0";
+        static final int FALLBACK_CODE = 6;
+        static final String FALLBACK_NAME = "1.2.1";
     }
 }
