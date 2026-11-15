@@ -4399,3 +4399,7 @@ html.theme-light .confirm-actions { border-top-color: rgba(115, 75, 55, .12); }
 .calendar-all-list .calendar-photo-btn { width: 28px; height: 28px; flex-basis: 28px; }
 .calendar-all-list .calendar-photo-btn svg { width: 16px; height: 16px; }
 .calendar-photo-btn img { display: none; }
+
+/* Header 7 sits 3px lower; the 777 lockup gets exactly 2px between glyphs. */
+.brand-mark > span { transform: translateY(2px); }
+.machine-logo b { letter-spacing: 2px; margin-right: -2px; }

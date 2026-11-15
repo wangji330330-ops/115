@@ -196,14 +196,13 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.4.2';
-  const APP_VERSION_CODE = 11;
+  const APP_VERSION = '1.4.3';
+  const APP_VERSION_CODE = 12;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '日历打卡改为小相机图标，点开才查看照片，不在外面直接显示缩略图',
-    '关闭照片查看器立即返回，不再先卡掉图片再退出',
-    '「全部」继续在日期框内展开并滑动，按钮固定在右下角',
-    '保留亮色/深色主题、重复完成免拍照和安卓性能模式'
+    '顶部金币里的 7 下调 3 像素',
+    '777 标志里的三个 7 之间各间隔 2 像素',
+    '其余功能与 v1.4.2 相同'
   ];
 
   const params = new URLSearchParams(window.location.search);

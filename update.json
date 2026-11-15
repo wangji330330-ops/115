@@ -1,17 +1,16 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 11,
-  "versionName": "1.4.2",
+  "versionCode": 12,
+  "versionName": "1.4.3",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk?v=142",
-  "sha256": "90b038ddc5a13d86fa05b236390985a7a6e44c800764ec5d665a72045c1ec6f3",
+  "apkUrl": "lucky-study-machine.apk?v=143",
+  "sha256": "e145dacfe6ce9f7354ba405231806ee357397d336bf67f35786bda11c01ac32f",
   "size": 382495,
   "notes": [
-    "日历打卡改为小相机图标，点开才查看照片，不在外面直接显示缩略图",
-    "关闭照片查看器立即返回，不再先卡掉图片再退出",
-    "「全部」继续在日期框内展开并滑动，按钮固定在右下角",
-    "保留亮色/深色主题、重复完成免拍照和安卓性能模式"
+    "顶部金币里的 7 下调 3 像素",
+    "777 标志里的三个 7 之间各间隔 2 像素",
+    "其余功能与 v1.4.2 相同"
   ]
 }
