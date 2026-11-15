@@ -1704,25 +1704,27 @@ kbd {
 .task-remove {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
-  margin: 0 -3px 0 0;
-  border-radius: 6px;
-  color: rgba(112, 79, 65, .4);
-  font-size: 16px;
-  font-weight: 300;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  margin: 0 -1px 0 0;
+  border: 1px solid rgba(170, 76, 66, .13);
+  border-radius: 8px;
+  color: rgba(142, 76, 68, .7);
+  background: rgba(170, 76, 66, .055);
+  font-size: 18px;
+  font-weight: 400;
   line-height: 1;
-  opacity: 0;
-  transition: opacity .15s ease, background .15s ease, color .15s ease;
+  opacity: 1;
+  transition: opacity .15s ease, background .15s ease, color .15s ease, border-color .15s ease;
 }
 
-.task-item:hover .task-remove,
-.task-remove:focus-visible { opacity: 1; }
-
-.task-remove:hover {
+.task-remove:hover,
+.task-remove:focus-visible {
   color: #9c3e3e;
-  background: rgba(170, 76, 66, .09);
+  border-color: rgba(170, 76, 66, .24);
+  background: rgba(170, 76, 66, .12);
+  opacity: 1;
 }
 
 .empty-state {
@@ -2792,7 +2794,12 @@ body.settings-open .page-shell { overflow: hidden; }
   .task-text { font-size: 11.5px; }
   .task-meta { font-size: 8px; margin-top: 3px; }
   .task-check { width: 21px; height: 21px; flex-basis: 21px; }
-  .task-remove { opacity: .45; }
+  .task-remove {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+    opacity: 1;
+  }
 
   .task-card-foot { margin-top: 11px; padding-top: 9px; gap: 8px; }
   .task-card-foot p { font-size: 8px; max-width: 74%; }

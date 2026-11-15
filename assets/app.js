@@ -196,14 +196,14 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.2.1';
-  const APP_VERSION_CODE = 6;
+  const APP_VERSION = '1.2.2';
+  const APP_VERSION_CODE = 7;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
+    '循环任务的删除按钮改成常显，点击后可选择“仅移除今天”或“删除整个计划”',
+    '已完成的每日 / 每周 / 每月任务也能用同样方式移除',
     '默认音量整体调大约 4 倍（约 20 → 80），音效更响亮清楚',
-    '保留“幸运机”名称、每日 / 每周 / 每月任务和指定日期任务',
-    '任务每天 04:00 刷新；学习日历和灵感数字点击继续保留',
-    '顶部提示去重、清除已完成确认和 280ms 骰子回正'
+    '保留任务计划、04:00 刷新、学习日历和顶部提示去重'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -953,6 +953,7 @@
     confirmTitle: $('#confirmTitle'),
     confirmMessage: $('#confirmMessage'),
     confirmCancel: $('#confirmCancel'),
+    confirmAlt: $('#confirmAlt'),
     confirmOk: $('#confirmOk'),
     planCycleTabs: $('#planCycleTabs'),
     planText: $('#planText'),
@@ -1003,6 +1004,7 @@
   let autoUpdateAnnounced = 0;
   let pendingImportBackup = null;
   let confirmResolver = null;
+  let confirmChoiceMode = false;
   let confirmLastFocus = null;
   let settingsLastFocus = null;
   let exportBusy = false;
@@ -1231,8 +1233,9 @@
     remove.type = 'button';
     remove.className = 'task-remove';
     remove.dataset.action = 'remove';
-    remove.setAttribute('aria-label', '删除任务：' + task.text);
-    remove.title = '删除这条任务';
+    const removablePlan = task.source === 'recurring' && task.planId;
+    remove.setAttribute('aria-label', (removablePlan ? '移除或删除循环任务：' : '删除任务：') + task.text);
+    remove.title = removablePlan ? '仅移除今天，或删除整个计划' : '删除这条任务';
     remove.textContent = '×';
 
     li.title = task.done ? '点击任务可取消完成' : '点击任务即可完成';
@@ -1804,7 +1807,7 @@
 
   function closeSettings() {
     if (!el.settingsLayer || el.settingsLayer.hidden) return;
-    if (!el.confirmLayer.hidden) settleConfirm(false);
+    if (!el.confirmLayer.hidden) settleConfirm('cancel');
     el.settingsLayer.classList.remove('is-open');
     el.settingsLayer.classList.add('is-closing');
     el.settingsBtn.setAttribute('aria-expanded', 'false');
@@ -1845,7 +1848,7 @@
 
     if (event.key === 'Escape') {
       event.preventDefault();
-      if (confirmOpen) settleConfirm(false);
+      if (confirmOpen) settleConfirm('cancel');
       else if (calendarOpen) closeCalendar();
       else closeSettings();
       return;
@@ -1871,23 +1874,28 @@
 
   function showConfirm(options) {
     const opts = options || {};
+    const choice = !!opts.altLabel;
     return new Promise(function (resolve) {
       if (confirmResolver) {
         const previous = confirmResolver;
+        const previousMode = confirmChoiceMode;
         confirmResolver = null;
-        previous(false);
+        previous(previousMode ? 'cancel' : false);
       }
+      confirmChoiceMode = choice;
       confirmResolver = resolve;
       confirmLastFocus = document.activeElement;
       el.confirmTitle.textContent = opts.title || '确认操作';
       el.confirmMessage.textContent = opts.message || '';
       el.confirmOk.textContent = opts.confirmLabel || '确认';
       el.confirmCancel.textContent = opts.cancelLabel || '取消';
+      el.confirmAlt.textContent = choice ? opts.altLabel : '仅移除今天';
+      el.confirmAlt.hidden = !choice;
       el.confirmBox.classList.toggle('is-danger', !!opts.danger);
       el.confirmLayer.hidden = false;
       window.requestAnimationFrame(function () {
         el.confirmLayer.classList.add('is-open');
-        el.confirmOk.focus({ preventScroll: true });
+        (choice ? el.confirmAlt : el.confirmOk).focus({ preventScroll: true });
       });
     });
   }
@@ -1895,7 +1903,10 @@
   function settleConfirm(value) {
     if (!el.confirmLayer || el.confirmLayer.hidden) return;
     const resolver = confirmResolver;
+    const choice = confirmChoiceMode;
     confirmResolver = null;
+    confirmChoiceMode = false;
+    el.confirmAlt.hidden = true;
     el.confirmLayer.classList.remove('is-open');
     window.setTimeout(function () {
       el.confirmLayer.hidden = true;
@@ -1906,7 +1917,7 @@
         el.settingsClose.focus({ preventScroll: true });
       }
     }, 230);
-    if (resolver) resolver(!!value);
+    if (resolver) resolver(choice ? (value || 'cancel') : !!value);
   }
 
   function backupPayload() {
@@ -3123,8 +3134,8 @@
     if (previouslyDone) renderProgress();
   }
 
-  function removeTask(id) {
-    const index = state.tasks.findIndex(function (item) { return item.id === id; });
+  function removeTaskInstance(task) {
+    const index = state.tasks.findIndex(function (item) { return item.id === task.id; });
     if (index < 0) return;
     const removed = state.tasks[index];
     if ((removed.source === 'recurring' || removed.source === 'scheduled') && removed.planId) {
@@ -3136,7 +3147,51 @@
     renderTasks({ scrollTop: scrollTop });
     renderTickets();
     audio.ui();
-    showToast('任务已删除。');
+    if (removed.source === 'recurring') {
+      showToast('已从今天移除；这条计划仍保留在设置 → 任务计划里。', 'info', 3600);
+    } else if (removed.source === 'scheduled') {
+      showToast('已移除这条日期任务。', 'info', 3000);
+    } else {
+      showToast('任务已删除。');
+    }
+  }
+
+  async function removeTask(id) {
+    const task = state.tasks.find(function (item) { return item.id === id; });
+    if (!task) return;
+
+    // Recurring tasks are templates, so removing one row is not enough if the
+    // user really wants the task gone. Offer both choices explicitly instead of
+    // silently skipping only today's instance.
+    if (task.source === 'recurring' && task.planId) {
+      const label = ROUTINE_LABELS[task.recurrence] || '循环';
+      const cycleText = task.recurrence === 'weekly'
+        ? '每周一 04:00 换新'
+        : (task.recurrence === 'monthly' ? '每月 1 日 04:00 换新' : '每天 04:00 换新');
+      const shortText = task.text.length > 32 ? task.text.slice(0, 32) + '…' : task.text;
+      const result = await showConfirm({
+        title: '要删除这条' + label + '任务吗？',
+        message: '「' + shortText + '」' + cycleText + '。\n\n仅移除今天：今天不再显示，计划仍然保留。\n删除整个计划：以后不会再出现。\n\n已获得的灵感和摇奖券不会收回。',
+        altLabel: '仅移除今天',
+        confirmLabel: '删除整个计划',
+        cancelLabel: '取消',
+        danger: true
+      });
+      if (result === 'alt') {
+        removeTaskInstance(task);
+        return;
+      }
+      if (result === 'ok') {
+        if (state.routines.some(function (plan) { return plan.id === task.planId; })) {
+          deletePlan('routine', task.planId);
+        } else {
+          removeTaskInstance(task);
+        }
+      }
+      return;
+    }
+
+    removeTaskInstance(task);
   }
 
   async function clearDoneTasks() {
@@ -3496,10 +3551,11 @@
     el.choosePathBtn.addEventListener('click', chooseSavePath);
     el.clearDataBtn.addEventListener('click', clearAllLearningData);
     el.pwaInstallBtn.addEventListener('click', installWebApp);
-    el.confirmCancel.addEventListener('click', function () { settleConfirm(false); });
-    el.confirmOk.addEventListener('click', function () { settleConfirm(true); });
+    el.confirmCancel.addEventListener('click', function () { settleConfirm('cancel'); });
+    el.confirmAlt.addEventListener('click', function () { settleConfirm('alt'); });
+    el.confirmOk.addEventListener('click', function () { settleConfirm('ok'); });
     $$('[data-confirm-cancel]').forEach(function (node) {
-      node.addEventListener('click', function () { settleConfirm(false); });
+      node.addEventListener('click', function () { settleConfirm('cancel'); });
     });
 
     $$('.plan-cycle-btn', el.planCycleTabs).forEach(function (button) {

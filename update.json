@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 6,
-  "versionName": "1.2.1",
+  "versionCode": 7,
+  "versionName": "1.2.2",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk?v=121",
-  "sha256": "eb944fc6261e7ae87571c1ea8197cb96b47b29c79c0d2966e2a8daf9bc2cca99",
+  "apkUrl": "lucky-study-machine.apk?v=122",
+  "sha256": "326dd4f8e1baa475badddcd1f4204009597dc67d44e7b118857d2eb9ea5443cb",
   "size": 366111,
   "notes": [
+    "循环任务的删除按钮改成常显；点击后可选择“仅移除今天”或“删除整个计划”",
+    "已完成的每日 / 每周 / 每月任务也能这样移除",
     "默认音量整体调大约 4 倍（约 20 → 80），音效更响亮清楚",
-    "保留“幸运机”名称、每日 / 每周 / 每月任务和指定日期任务",
-    "任务每天 04:00 刷新；学习日历和灵感数字点击继续保留",
-    "顶部提示去重、清除已完成确认和 280ms 骰子回正"
+    "保留任务计划、04:00 刷新、学习日历和顶部提示去重"
   ]
 }
