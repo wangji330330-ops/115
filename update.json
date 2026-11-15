@@ -1,17 +1,18 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 7,
-  "versionName": "1.2.2",
+  "versionCode": 8,
+  "versionName": "1.3.0",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk?v=122",
-  "sha256": "326dd4f8e1baa475badddcd1f4204009597dc67d44e7b118857d2eb9ea5443cb",
-  "size": 366111,
+  "apkUrl": "lucky-study-machine.apk?v=130",
+  "sha256": "e9b59e8ee9a969108ace019f7758308afaea62b5d5e2c999f67314ae8fa1228a",
+  "size": 374303,
   "notes": [
-    "循环任务的删除按钮改成常显；点击后可选择“仅移除今天”或“删除整个计划”",
-    "已完成的每日 / 每周 / 每月任务也能这样移除",
-    "默认音量整体调大约 4 倍（约 20 → 80），音效更响亮清楚",
-    "保留任务计划、04:00 刷新、学习日历和顶部提示去重"
+    "任务完成改为拍照打卡：点任务或相机，拍照 / 相册选择后领券",
+    "打卡照片保存在本机，学习日历可以回看照片和打卡标记",
+    "日历任务框住不溢出；Daily Record 只显示“现在 / N天前”",
+    "修复快速点摇一摇、打开设置时偶发闪动",
+    "保留循环任务、04:00 刷新、音量提升和删除选择"
   ]
 }

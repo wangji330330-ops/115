@@ -196,14 +196,15 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.2.2';
-  const APP_VERSION_CODE = 7;
+  const APP_VERSION = '1.3.0';
+  const APP_VERSION_CODE = 8;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '循环任务的删除按钮改成常显，点击后可选择“仅移除今天”或“删除整个计划”',
-    '已完成的每日 / 每周 / 每月任务也能用同样方式移除',
-    '默认音量整体调大约 4 倍（约 20 → 80），音效更响亮清楚',
-    '保留任务计划、04:00 刷新、学习日历和顶部提示去重'
+    '任务完成改为拍照打卡：点任务或相机，拍照 / 相册选择后领券',
+    '打卡照片保存在本机，学习日历可以回看照片和打卡标记',
+    '日历任务框住不溢出；Daily Record 只显示“现在 / N天前”',
+    '修复快速点摇一摇、打开设置时偶发闪动',
+    '保留循环任务、04:00 刷新、音量提升和删除选择'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -297,6 +298,153 @@
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   }
 
+  /* ========== 打卡照片存储（IndexedDB） ========== */
+  const PHOTO_DB_NAME = 'lucky-study-machine.photos';
+  const PHOTO_STORE = 'photos';
+
+  function openPhotoDb() {
+    if (!window.indexedDB) return Promise.reject(new Error('photo-storage-unavailable'));
+    if (photoDbPromise) return photoDbPromise;
+    photoDbPromise = new Promise(function (resolve, reject) {
+      let request;
+      try {
+        request = window.indexedDB.open(PHOTO_DB_NAME, 1);
+      } catch (err) {
+        photoDbPromise = null;
+        reject(new Error('photo-storage-unavailable'));
+        return;
+      }
+      request.onupgradeneeded = function () {
+        const db = request.result;
+        if (!db.objectStoreNames.contains(PHOTO_STORE)) {
+          db.createObjectStore(PHOTO_STORE, { keyPath: 'id' });
+        }
+      };
+      request.onsuccess = function () {
+        const db = request.result;
+        db.onversionchange = function () { db.close(); };
+        resolve(db);
+      };
+      request.onerror = function () {
+        photoDbPromise = null;
+        reject(request.error || new Error('photo-storage-error'));
+      };
+      request.onblocked = function () {
+        photoDbPromise = null;
+        reject(new Error('photo-storage-blocked'));
+      };
+    });
+    return photoDbPromise;
+  }
+
+  function savePhotoBlob(blob) {
+    return openPhotoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        const id = 'p' + uid();
+        const transaction = db.transaction(PHOTO_STORE, 'readwrite');
+        transaction.objectStore(PHOTO_STORE).put({
+          id: id,
+          blob: blob,
+          type: blob.type || 'image/jpeg',
+          createdAt: Date.now()
+        });
+        transaction.oncomplete = function () { resolve(id); };
+        transaction.onerror = function () { reject(transaction.error || new Error('photo-save-error')); };
+        transaction.onabort = function () { reject(transaction.error || new Error('photo-save-abort')); };
+      });
+    });
+  }
+
+  function getPhotoRecord(id) {
+    if (!id) return Promise.reject(new Error('photo-missing'));
+    return openPhotoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        const transaction = db.transaction(PHOTO_STORE, 'readonly');
+        const request = transaction.objectStore(PHOTO_STORE).get(id);
+        request.onsuccess = function () { resolve(request.result || null); };
+        request.onerror = function () { reject(request.error || new Error('photo-read-error')); };
+      });
+    });
+  }
+
+  function clearPhotoStore() {
+    return openPhotoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        const transaction = db.transaction(PHOTO_STORE, 'readwrite');
+        transaction.objectStore(PHOTO_STORE).clear();
+        transaction.oncomplete = function () { resolve(true); };
+        transaction.onerror = function () { reject(transaction.error || new Error('photo-clear-error')); };
+      });
+    });
+  }
+
+  function preparePhotoBlob(file) {
+    if (!file || !file.type || !/^image\//i.test(file.type)) {
+      return Promise.reject(new Error('not-an-image'));
+    }
+    if (file.size > 30 * 1024 * 1024) {
+      return Promise.reject(new Error('photo-too-large'));
+    }
+    const load = function () {
+      if (typeof window.createImageBitmap === 'function') {
+        return window.createImageBitmap(file, { imageOrientation: 'from-image' }).catch(function () {
+          return loadWithImageElement(file);
+        });
+      }
+      return loadWithImageElement(file);
+    };
+    return load().then(function (bitmap) {
+      const width = bitmap.width || bitmap.naturalWidth;
+      const height = bitmap.height || bitmap.naturalHeight;
+      if (!width || !height) throw new Error('bad-image');
+      const maxSide = 1600;
+      const scale = Math.min(1, maxSide / Math.max(width, height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(width * scale));
+      canvas.height = Math.max(1, Math.round(height * scale));
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('canvas-unavailable');
+      context.fillStyle = '#fffaf1';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      if (typeof bitmap.close === 'function') bitmap.close();
+      return new Promise(function (resolve, reject) {
+        canvas.toBlob(function (blob) {
+          if (blob) resolve(blob);
+          else reject(new Error('photo-encode-error'));
+        }, 'image/jpeg', 0.82);
+      });
+    });
+  }
+
+  function loadWithImageElement(file) {
+    return new Promise(function (resolve, reject) {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = function () {
+        URL.revokeObjectURL(url);
+        resolve(image);
+      };
+      image.onerror = function () {
+        URL.revokeObjectURL(url);
+        reject(new Error('image-decode-error'));
+      };
+      image.src = url;
+    });
+  }
+
+  function photoErrorMessage(code) {
+    if (code === 'photo-too-large') return '这张照片太大了，换一张再试。';
+    if (code === 'not-an-image' || code === 'image-decode-error' || code === 'bad-image') {
+      return '这张图片打不开，换一张 JPG / PNG 试试。';
+    }
+    if (code === 'photo-storage-unavailable') return '这个浏览器没有开放照片存储。';
+    if (code === 'photo-storage-blocked' || code === 'photo-storage-error') {
+      return '照片存储暂时被占用，稍后再试。';
+    }
+    return '照片没有保存成功，再试一次吧。';
+  }
+
   const ROUTINE_LABELS = { daily: '每日', weekly: '每周', monthly: '每月' };
   const ROUTINE_CYCLES = ['daily', 'weekly', 'monthly'];
 
@@ -324,7 +472,17 @@
     if (!item || typeof item !== 'object' || typeof item.text !== 'string') return null;
     const text = Array.from(item.text.replace(/\s+/g, ' ').trim()).slice(0, 60).join('');
     if (!text) return null;
-    return { text: text, done: !!item.done, source: typeof item.source === 'string' ? item.source : 'custom' };
+    const photoId = typeof item.photoId === 'string' ? item.photoId : '';
+    const photoDay = typeof item.photoDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.photoDay)
+      ? item.photoDay : '';
+    return {
+      text: text,
+      done: !!item.done,
+      source: typeof item.source === 'string' ? item.source : 'custom',
+      photoId: photoId,
+      photoDay: photoDay,
+      photoAt: Number(item.photoAt) || null
+    };
   }
 
   function sanitizeHistory(raw) {
@@ -372,6 +530,8 @@
       const source = ['custom', 'random', 'idea', 'recurring', 'scheduled'].indexOf(item.source) >= 0
         ? item.source : 'custom';
       const recurrence = ROUTINE_CYCLES.indexOf(item.recurrence) >= 0 ? item.recurrence : null;
+      const photoDay = typeof item.photoDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.photoDay)
+        ? item.photoDay : '';
       out.push({
         id: id,
         text: text,
@@ -383,7 +543,10 @@
         planId: planId,
         cycleKey: cycleKey,
         recurrence: recurrence,
-        scheduledDate: typeof item.scheduledDate === 'string' ? item.scheduledDate : null
+        scheduledDate: typeof item.scheduledDate === 'string' ? item.scheduledDate : null,
+        photoId: typeof item.photoId === 'string' && item.photoId ? item.photoId : '',
+        photoAt: Number(item.photoAt) || null,
+        photoDay: photoDay
       });
     });
     return out;
@@ -506,7 +669,14 @@
     if (!state || !state.date) return;
     const entry = ensureHistoryDay(state.date);
     entry.tasks = state.tasks.slice(0, 60).map(function (task) {
-      return { text: task.text, done: !!task.done, source: task.source || 'custom' };
+      return {
+        text: task.text,
+        done: !!task.done,
+        source: task.source || 'custom',
+        photoId: task.photoId || '',
+        photoAt: task.photoAt || null,
+        photoDay: task.photoDay || ''
+      };
     });
   }
 
@@ -975,7 +1145,21 @@
     calendarDayStars: $('#calendarDayStars'),
     calendarDaySummary: $('#calendarDaySummary'),
     calendarTaskList: $('#calendarTaskList'),
-    calendarDayEmpty: $('#calendarDayEmpty')
+    calendarDayEmpty: $('#calendarDayEmpty'),
+    photoSheetLayer: $('#photoSheetLayer'),
+    photoSheet: $('#photoSheet'),
+    photoSheetTask: $('#photoSheetTask'),
+    photoTakeBtn: $('#photoTakeBtn'),
+    photoPickBtn: $('#photoPickBtn'),
+    photoCancelBtn: $('#photoCancelBtn'),
+    photoCameraInput: $('#photoCameraInput'),
+    photoGalleryInput: $('#photoGalleryInput'),
+    photoViewerLayer: $('#photoViewerLayer'),
+    photoViewer: $('#photoViewer'),
+    photoViewerImage: $('#photoViewerImage'),
+    photoViewerEmpty: $('#photoViewerEmpty'),
+    photoViewerCaption: $('#photoViewerCaption'),
+    photoViewerClose: $('#photoViewerClose')
   };
 
   const reelTracks = el.reels.map(function (reel) {
@@ -984,6 +1168,8 @@
   const visibleByReel = [];
   const currentCenterIndex = [2, 2, 2];
   let spinning = false;
+  let spinCooldownUntil = 0;
+  let spinCooldownTimer = 0;
   let forcedTier = null;
   let lastQuote = '';
   let resizeTimer = 0;
@@ -1015,6 +1201,15 @@
   let calendarSelectedKey = todayKey();
   let calendarLastFocus = null;
   let calendarCloseTimer = 0;
+  let photoTaskId = null;
+  let photoLastFocus = null;
+  let photoCloseTimer = 0;
+  let photoBusy = false;
+  let photoViewerUrl = '';
+  let photoViewerLastFocus = null;
+  let photoViewerCloseTimer = 0;
+  let photoViewerToken = 0;
+  let photoDbPromise = null;
   let toastNode = null;
   let toastHideTimer = 0;
   const toastCooldowns = new Map();
@@ -1176,10 +1371,16 @@
     return dot;
   }
 
+  function cameraIconMarkup() {
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+      + '<path d="M4.5 8.5h3l1.3-2h6.4l1.3 2h3v10h-15z"/><circle cx="12" cy="13.2" r="3.2"/></svg>';
+  }
+
   function buildTaskItem(task) {
     const li = document.createElement('li');
     li.className = 'task-item' + (task.done ? ' is-done' : '');
     li.dataset.id = task.id;
+    const hasPhoto = !!task.photoId;
 
     const check = document.createElement('button');
     check.type = 'button';
@@ -1188,7 +1389,7 @@
     check.setAttribute('aria-pressed', String(task.done));
     check.setAttribute(
       'aria-label',
-      (task.done ? '标记为未完成：' : '标记为完成：') + task.text
+      task.done ? '标记为未完成：' + task.text : '拍照打卡完成任务：' + task.text
     );
     check.textContent = '✓';
 
@@ -1206,11 +1407,19 @@
       meta.appendChild(makeMetaItem(time ? '完成于 ' + time : '已完成'));
       meta.appendChild(makeDot());
       meta.appendChild(makeMetaItem(task.rewarded ? '奖励已领取' : '等一张摇奖券', 'reward-tag'));
+      if (hasPhoto) {
+        meta.appendChild(makeDot());
+        meta.appendChild(makeMetaItem('已拍照打卡', 'photo-tag'));
+      }
     } else {
       meta.appendChild(makeMetaItem(task.rewarded ? '再次完成' : '完成后'));
       meta.appendChild(makeMetaItem(task.rewarded ? '奖励已领取' : '+1 张摇奖券', 'reward-tag'));
       meta.appendChild(makeDot());
       meta.appendChild(makeMetaItem('+' + TASK_REWARD.stars + ' 灵感'));
+      if (hasPhoto) {
+        meta.appendChild(makeDot());
+        meta.appendChild(makeMetaItem('已拍照，点任务完成', 'photo-tag'));
+      }
     }
 
     let sourceLabel = '';
@@ -1229,6 +1438,20 @@
     }
     body.appendChild(meta);
 
+    const tools = document.createElement('div');
+    tools.className = 'task-tools';
+
+    const camera = document.createElement('button');
+    camera.type = 'button';
+    camera.className = 'task-camera' + (hasPhoto ? ' has-photo' : '');
+    camera.dataset.action = 'photo';
+    camera.setAttribute(
+      'aria-label',
+      (hasPhoto ? '查看打卡照片：' : '拍照打卡完成任务：') + task.text
+    );
+    camera.title = hasPhoto ? '查看打卡照片' : '拍照打卡';
+    camera.innerHTML = cameraIconMarkup();
+
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'task-remove';
@@ -1238,10 +1461,15 @@
     remove.title = removablePlan ? '仅移除今天，或删除整个计划' : '删除这条任务';
     remove.textContent = '×';
 
-    li.title = task.done ? '点击任务可取消完成' : '点击任务即可完成';
+    tools.appendChild(camera);
+    tools.appendChild(remove);
+
+    li.title = task.done
+      ? '点击任务可取消完成'
+      : (hasPhoto ? '点击任务即可完成（已有打卡照）' : '点击任务或相机，拍照打卡后完成');
     li.appendChild(check);
     li.appendChild(body);
-    li.appendChild(remove);
+    li.appendChild(tools);
     return li;
   }
 
@@ -1397,11 +1625,16 @@
 
   function setReleaseNotes(notes) {
     if (!el.releaseNotes) return;
+    const list = (Array.isArray(notes) && notes.length ? notes : FALLBACK_RELEASE_NOTES)
+      .slice(0, 10)
+      .map(function (note) { return String(note); });
+    const signature = list.join('\n');
+    if (el.releaseNotes.dataset.signature === signature) return;
+    el.releaseNotes.dataset.signature = signature;
     while (el.releaseNotes.firstChild) el.releaseNotes.removeChild(el.releaseNotes.firstChild);
-    const list = Array.isArray(notes) && notes.length ? notes : FALLBACK_RELEASE_NOTES;
-    list.slice(0, 10).forEach(function (note) {
+    list.forEach(function (note) {
       const li = document.createElement('li');
-      li.textContent = String(note);
+      li.textContent = note;
       el.releaseNotes.appendChild(li);
     });
   }
@@ -1767,19 +2000,6 @@
     }
   }
 
-  function maybeCheckUpdateOnSettingsOpen() {
-    if (updatePhase === 'checking' || updatePhase === 'downloading' || updatePhase === 'verifying' || updatePhase === 'installing') {
-      return;
-    }
-    if (!updateInfo || Date.now() - updateCheckedAt > 60000) {
-      window.setTimeout(function () {
-        if (!el.settingsLayer.hidden && !el.settingsLayer.classList.contains('is-closing')) {
-          checkForUpdates(false);
-        }
-      }, 180);
-    }
-  }
-
   function openSettings() {
     if (!el.settingsLayer) return;
     const wasClosing = !el.settingsLayer.hidden && el.settingsLayer.classList.contains('is-closing');
@@ -1793,16 +2013,11 @@
     document.body.classList.add('settings-open');
     if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = true;
     hideToast();
-    renderPlatformSections();
-    renderPlanManager();
-    renderUpdatePanel();
     window.requestAnimationFrame(function () {
       if (el.settingsLayer.hidden) return;
       el.settingsLayer.classList.add('is-open');
       el.settingsClose.focus({ preventScroll: true });
     });
-
-    if (!wasClosing) maybeCheckUpdateOnSettingsOpen();
   }
 
   function closeSettings() {
@@ -1840,22 +2055,32 @@
 
   function handleSettingsKeydown(event) {
     const confirmOpen = el.confirmLayer && !el.confirmLayer.hidden;
+    const photoViewerOpen = el.photoViewerLayer && !el.photoViewerLayer.hidden;
+    const photoSheetOpen = el.photoSheetLayer && !el.photoSheetLayer.hidden;
     const calendarOpen = el.calendarLayer && !el.calendarLayer.hidden
       && !el.calendarLayer.style.pointerEvents;
     const settingsOpen = el.settingsLayer && !el.settingsLayer.hidden
       && !el.settingsLayer.classList.contains('is-closing');
-    if (!confirmOpen && !settingsOpen && !calendarOpen) return;
+    if (!confirmOpen && !photoViewerOpen && !photoSheetOpen && !settingsOpen && !calendarOpen) return;
 
     if (event.key === 'Escape') {
       event.preventDefault();
       if (confirmOpen) settleConfirm('cancel');
+      else if (photoViewerOpen) closePhotoViewer();
+      else if (photoSheetOpen) closePhotoSheet(true);
       else if (calendarOpen) closeCalendar();
       else closeSettings();
       return;
     }
 
     if (event.key !== 'Tab') return;
-    const scope = confirmOpen ? el.confirmBox : (calendarOpen ? el.calendarModal : el.settingsDrawer);
+    const scope = confirmOpen
+      ? el.confirmBox
+      : (photoViewerOpen
+        ? el.photoViewer
+        : (photoSheetOpen
+          ? el.photoSheet
+          : (calendarOpen ? el.calendarModal : el.settingsDrawer)));
     if (!scope) return;
     const nodes = focusableIn(scope);
     if (!nodes.length) return;
@@ -2314,6 +2539,195 @@
     }, 720);
   }
 
+  /* ========== 拍照打卡 ========== */
+  function taskById(id) {
+    return state.tasks.find(function (task) { return task.id === id; }) || null;
+  }
+
+  function openPhotoSheet(taskId) {
+    if (!el.photoSheetLayer) return;
+    const task = taskById(taskId);
+    if (!task) return;
+    if (task.photoId) {
+      viewTaskPhoto(task);
+      return;
+    }
+    hideToast();
+    window.clearTimeout(photoCloseTimer);
+    photoTaskId = task.id;
+    if (el.photoSheetLayer.hidden) photoLastFocus = document.activeElement;
+    el.photoSheetLayer.hidden = false;
+    el.photoSheetLayer.style.pointerEvents = '';
+    el.photoSheetTask.textContent = '「' + task.text + '」';
+    document.body.classList.add('photo-open');
+    if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = true;
+    window.requestAnimationFrame(function () {
+      el.photoSheetLayer.classList.add('is-open');
+      el.photoTakeBtn.focus({ preventScroll: true });
+    });
+  }
+
+  function closePhotoSheet(clearTarget) {
+    if (!el.photoSheetLayer || el.photoSheetLayer.hidden) return;
+    el.photoSheetLayer.classList.remove('is-open');
+    el.photoSheetLayer.style.pointerEvents = 'none';
+    document.body.classList.remove('photo-open');
+    if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = false;
+    window.clearTimeout(photoCloseTimer);
+    const shouldRestore = clearTarget !== false && el.photoSheet.contains(document.activeElement);
+    photoCloseTimer = window.setTimeout(function () {
+      if (el.photoSheetLayer.classList.contains('is-open')) return;
+      el.photoSheetLayer.hidden = true;
+      el.photoSheetLayer.style.pointerEvents = '';
+      if (shouldRestore) {
+        const target = photoLastFocus && document.contains(photoLastFocus) ? photoLastFocus : el.taskInput;
+        if (target) target.focus({ preventScroll: true });
+      }
+    }, 280);
+    if (clearTarget !== false) photoTaskId = null;
+  }
+
+  function triggerPhotoPicker(kind) {
+    if (!photoTaskId) return;
+    const input = kind === 'camera' ? el.photoCameraInput : el.photoGalleryInput;
+    if (!input) return;
+    closePhotoSheet(false);
+    input.value = '';
+    input.click();
+  }
+
+  function handlePhotoFile(file) {
+    if (!file || !photoTaskId || photoBusy) return;
+    const taskId = photoTaskId;
+    if (el.photoSheetLayer && !el.photoSheetLayer.hidden) closePhotoSheet(false);
+    photoBusy = true;
+    showToast('正在保存打卡照…', 'info', 1800);
+    preparePhotoBlob(file)
+      .then(function (blob) { return savePhotoBlob(blob); })
+      .then(function (photoId) {
+        const task = taskById(taskId);
+        photoBusy = false;
+        photoTaskId = null;
+        if (!task) {
+          showToast('这条任务已经不在清单里了。', 'warn', 3000);
+          return;
+        }
+        task.photoId = photoId;
+        task.photoAt = Date.now();
+        task.photoDay = state.date;
+        if (task.done) {
+          saveState();
+          renderTasks({ scrollTop: el.taskListWrap.scrollTop });
+          showToast('打卡照已保存。', 'win', 2800);
+        } else {
+          toggleTask(task.id);
+        }
+      })
+      .catch(function (err) {
+        photoBusy = false;
+        photoTaskId = null;
+        const code = err && err.message ? err.message : '';
+        showToast(photoErrorMessage(code), 'warn', 4200);
+      });
+  }
+
+  function openPhotoViewer(photoId, caption) {
+    if (!el.photoViewerLayer || !photoId) return;
+    hideToast();
+    photoViewerToken += 1;
+    const token = photoViewerToken;
+    photoViewerLastFocus = document.activeElement;
+    if (photoViewerUrl) {
+      URL.revokeObjectURL(photoViewerUrl);
+      photoViewerUrl = '';
+    }
+    el.photoViewerImage.hidden = true;
+    el.photoViewerImage.removeAttribute('src');
+    el.photoViewerEmpty.textContent = '正在打开照片…';
+    el.photoViewerEmpty.hidden = false;
+    el.photoViewerCaption.textContent = caption || '打卡照片';
+    el.photoViewerLayer.hidden = false;
+    el.photoViewerLayer.style.pointerEvents = '';
+    document.body.classList.add('photo-viewer-open');
+    if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = true;
+    window.requestAnimationFrame(function () {
+      el.photoViewerLayer.classList.add('is-open');
+      el.photoViewerClose.focus({ preventScroll: true });
+    });
+    getPhotoRecord(photoId)
+      .then(function (record) {
+        if (token !== photoViewerToken) return;
+        if (!record || !record.blob) {
+          el.photoViewerEmpty.textContent = '这张打卡照片不在这台设备上。';
+          el.photoViewerEmpty.hidden = false;
+          return;
+        }
+        photoViewerUrl = URL.createObjectURL(record.blob);
+        el.photoViewerImage.onload = function () {
+          el.photoViewerEmpty.hidden = true;
+          el.photoViewerImage.hidden = false;
+        };
+        el.photoViewerImage.onerror = function () {
+          el.photoViewerImage.hidden = true;
+          el.photoViewerEmpty.textContent = '这张照片打不开。';
+          el.photoViewerEmpty.hidden = false;
+        };
+        el.photoViewerImage.src = photoViewerUrl;
+      })
+      .catch(function () {
+        if (token !== photoViewerToken) return;
+        el.photoViewerEmpty.textContent = '这张打卡照片不在这台设备上。';
+        el.photoViewerEmpty.hidden = false;
+      });
+  }
+
+  function closePhotoViewer() {
+    if (!el.photoViewerLayer || el.photoViewerLayer.hidden) return;
+    photoViewerToken += 1;
+    el.photoViewerLayer.classList.remove('is-open');
+    el.photoViewerLayer.style.pointerEvents = 'none';
+    document.body.classList.remove('photo-viewer-open');
+    if (el.pageShell && 'inert' in el.pageShell) {
+      el.pageShell.inert = !!((el.calendarLayer && !el.calendarLayer.hidden)
+        || (el.photoSheetLayer && !el.photoSheetLayer.hidden)
+        || (el.settingsLayer && !el.settingsLayer.hidden));
+    }
+    window.clearTimeout(photoViewerCloseTimer);
+    if (photoViewerUrl) {
+      URL.revokeObjectURL(photoViewerUrl);
+      photoViewerUrl = '';
+    }
+    el.photoViewerImage.removeAttribute('src');
+    el.photoViewerImage.hidden = true;
+    el.photoViewerEmpty.hidden = true;
+    const shouldRestore = el.photoViewer.contains(document.activeElement);
+    photoViewerCloseTimer = window.setTimeout(function () {
+      if (el.photoViewerLayer.classList.contains('is-open')) return;
+      el.photoViewerLayer.hidden = true;
+      el.photoViewerLayer.style.pointerEvents = '';
+      if (!shouldRestore) return;
+      const target = photoViewerLastFocus && document.contains(photoViewerLastFocus)
+        ? photoViewerLastFocus : el.streakPill;
+      if (target) target.focus({ preventScroll: true });
+    }, 260);
+  }
+
+  function viewTaskPhoto(task) {
+    if (!task || !task.photoId) return;
+    const day = task.photoDay ? ' · ' + formatDateCN(task.photoDay) : '';
+    openPhotoViewer(task.photoId, task.text + day);
+  }
+
+  function handleTaskPhoto(taskId) {
+    const task = taskById(taskId);
+    if (!task) return;
+    if (task.photoId) {
+      viewTaskPhoto(task);
+    } else {
+      openPhotoSheet(task.id);
+    }
+  }
+
   /* ========== 学习日历 ========== */
   function dayHasRecord(key) {
     const entry = state.history[key];
@@ -2329,7 +2743,14 @@
   function calendarDayTasks(key) {
     if (key === state.date) {
       return state.tasks.map(function (task) {
-        return { text: task.text, done: !!task.done, source: task.source || 'custom' };
+        return {
+          text: task.text,
+          done: !!task.done,
+          source: task.source || 'custom',
+          photoId: task.photoId || '',
+          photoAt: task.photoAt || null,
+          photoDay: task.photoDay || ''
+        };
       });
     }
     if (key > todayKey()) {
@@ -2341,13 +2762,23 @@
     return entry && Array.isArray(entry.tasks) ? entry.tasks : [];
   }
 
+  function relativeDayLabel(key) {
+    const diff = Math.round((parseDateKey(key).getTime() - parseDateKey(todayKey()).getTime()) / 86400000);
+    if (diff === 0) return '现在';
+    if (diff > 0) return diff + '天后';
+    return Math.abs(diff) + '天前';
+  }
+
   function renderCalendarDayDetail(key) {
     const isToday = key === todayKey();
     const isFuture = key > todayKey();
     const entry = state.history[key] || { completed: 0, spins: 0, stars: 0, tasks: [] };
     const tasks = calendarDayTasks(key);
-    const title = formatFullDateCN(key) + (isToday ? ' · 今天' : (isFuture ? ' · 计划' : ''));
-    el.calendarDayTitle.textContent = title;
+    const photoCount = tasks.filter(function (task) {
+      return !!(task.done && task.photoId && task.photoDay === key);
+    }).length;
+    el.calendarDayTitle.textContent = relativeDayLabel(key);
+    el.calendarDayTitle.title = formatFullDateCN(key);
     const stars = isFuture ? 0 : Math.max(0, Number(entry.stars) || 0);
     el.calendarDayStars.textContent = '+' + formatNumber(stars) + ' 灵感';
     if (isFuture) {
@@ -2355,8 +2786,10 @@
         ? '已安排 ' + tasks.length + ' 项日期任务'
         : '这一天还没有安排日期任务';
     } else {
-      el.calendarDaySummary.textContent = '当日完成 ' + Math.max(0, Number(entry.completed) || 0)
-        + ' 项 · 摇奖 ' + Math.max(0, Number(entry.spins) || 0) + ' 次';
+      let summary = '当日完成 ' + Math.max(0, Number(entry.completed) || 0) + ' 项';
+      if (photoCount > 0) summary += ' · 打卡 ' + photoCount + ' 张';
+      summary += ' · 摇奖 ' + Math.max(0, Number(entry.spins) || 0) + ' 次';
+      el.calendarDaySummary.textContent = summary;
     }
 
     while (el.calendarTaskList.firstChild) el.calendarTaskList.removeChild(el.calendarTaskList.firstChild);
@@ -2372,6 +2805,17 @@
       text.textContent = task.text;
       li.appendChild(status);
       li.appendChild(text);
+      if (task.done && task.photoId && task.photoDay === key) {
+        const photo = document.createElement('button');
+        photo.type = 'button';
+        photo.className = 'calendar-photo-btn';
+        photo.dataset.calendarPhoto = task.photoId;
+        photo.dataset.photoCaption = task.text + ' · ' + formatDateCN(key);
+        photo.setAttribute('aria-label', '查看打卡照片：' + task.text);
+        photo.title = '查看打卡照片';
+        photo.innerHTML = cameraIconMarkup();
+        li.appendChild(photo);
+      }
       el.calendarTaskList.appendChild(li);
     });
 
@@ -2379,7 +2823,7 @@
     if (!tasks.length) {
       el.calendarDayEmpty.textContent = isFuture
         ? '这一天没有提前安排的日期任务。'
-        : (isToday ? '今天还没有任务，去添加一件小事吧。' : '这一天没有留下任务记录。');
+        : (isToday ? '还没有任务，去添加一件小事吧。' : '这一天没有留下任务记录。');
     }
   }
 
@@ -2496,6 +2940,7 @@
     state.spins = 0;
     state.totalStars = 0;
     state.history = {};
+    await clearPhotoStore().catch(function () {});
     saveState();
     renderDate();
     renderTasks({ scrollTop: 0 });
@@ -2926,6 +3371,7 @@
 
   function startSpin() {
     if (spinning) return;
+    if (Date.now() < spinCooldownUntil) return;
     if (el.settingsLayer && !el.settingsLayer.hidden) return;
     if (el.confirmLayer && !el.confirmLayer.hidden) return;
     if (el.calendarLayer && !el.calendarLayer.hidden) return;
@@ -2966,6 +3412,16 @@
         resizedWhileSpinning = false;
         layoutReelsAtRest();
       }
+      // Let the result card settle before another spin can replace it. Without
+      // this, rapid taps make the area under the button flash and can burn a
+      // ticket before the previous result has even been read.
+      spinCooldownUntil = Date.now() + 520;
+      el.spinBtn.classList.add('is-cooldown');
+      window.clearTimeout(spinCooldownTimer);
+      spinCooldownTimer = window.setTimeout(function () {
+        spinCooldownUntil = 0;
+        el.spinBtn.classList.remove('is-cooldown');
+      }, 520);
       saveState();
     };
 
@@ -3074,6 +3530,10 @@
     const previouslyDone = task.done;
 
     if (!task.done) {
+      if (!task.photoId) {
+        openPhotoSheet(task.id);
+        return;
+      }
       task.done = true;
       task.completedAt = Date.now();
       let newlyRewarded = false;
@@ -3104,24 +3564,24 @@
       }
       if (newlyRewarded) {
         setResultCard(
-          '✦ TASK CLEARED · 又完成一件',
-          '「' + (task.text.length > 34 ? task.text.slice(0, 34) + '…' : task.text) + '」完成了。每一次认真，都是在给未来的自己攒底气。',
+          '✦ PHOTO CHECK-IN · 拍照打卡',
+          '「' + (task.text.length > 34 ? task.text.slice(0, 34) + '…' : task.text) + '」打卡成功。照片留作今天的证据，认真也有了回声。',
           '去摇一摇，把这份努力变成好运。',
           '+1 张摇奖券 · +' + TASK_REWARD.stars + ' 灵感',
-          ['is-task']
+          ['is-task', 'is-photo']
         );
-        showToast('完成啦！+1 张摇奖券 · +' + TASK_REWARD.stars + ' 颗灵感星', 'win', 3200);
-        announce('任务完成：' + task.text + '。获得一张摇奖券和 ' + TASK_REWARD.stars + ' 颗灵感星。');
+        showToast('打卡成功！+1 张摇奖券 · +' + TASK_REWARD.stars + ' 颗灵感星', 'win', 3200);
+        announce('拍照打卡完成：' + task.text + '。获得一张摇奖券和 ' + TASK_REWARD.stars + ' 颗灵感星。');
       } else {
         setResultCard(
-          '✦ TASK AGAIN · 又向前一步',
-          '「' + (task.text.length > 34 ? task.text.slice(0, 34) + '…' : task.text) + '」又完成了一次。奖励之前已经领过，但认真不会白费。',
+          '✦ PHOTO AGAIN · 又打一次卡',
+          '「' + (task.text.length > 34 ? task.text.slice(0, 34) + '…' : task.text) + '」又完成了一次。奖励之前已经领过，但照片和认真都还在。',
           '每一次重新开始，都算数。',
           '奖励已领取',
-          ['is-task']
+          ['is-task', 'is-photo']
         );
-        showToast('又完成了一次。之前已经领过奖励，但这份认真依旧算数。', 'info', 3000);
-        announce('任务再次完成：' + task.text + '。奖励已领取。');
+        showToast('又打了一次卡。之前已经领过奖励，但这份认真依旧算数。', 'info', 3000);
+        announce('任务再次打卡完成：' + task.text + '。奖励已领取。');
       }
     } else {
       task.done = false;
@@ -3420,6 +3880,7 @@
         if (!buttonRow) return;
         const buttonId = buttonRow.dataset.id;
         if (button.dataset.action === 'toggle') toggleTask(buttonId);
+        if (button.dataset.action === 'photo') handleTaskPhoto(buttonId);
         if (button.dataset.action === 'remove') removeTask(buttonId);
         return;
       }
@@ -3596,6 +4057,29 @@
       if (!day) return;
       selectCalendarDate(day.dataset.calendarDate);
     });
+    el.calendarTaskList.addEventListener('click', function (event) {
+      const photo = event.target.closest('[data-calendar-photo]');
+      if (!photo) return;
+      openPhotoViewer(photo.dataset.calendarPhoto, photo.dataset.photoCaption || '');
+    });
+
+    el.photoTakeBtn.addEventListener('click', function () { triggerPhotoPicker('camera'); });
+    el.photoPickBtn.addEventListener('click', function () { triggerPhotoPicker('gallery'); });
+    el.photoCancelBtn.addEventListener('click', function () { closePhotoSheet(true); });
+    $$('[data-close-photo-sheet]').forEach(function (node) {
+      node.addEventListener('click', function () { closePhotoSheet(true); });
+    });
+    [el.photoCameraInput, el.photoGalleryInput].forEach(function (input) {
+      input.addEventListener('change', function () {
+        const file = input.files && input.files[0];
+        input.value = '';
+        if (file) handlePhotoFile(file);
+      });
+    });
+    el.photoViewerClose.addEventListener('click', closePhotoViewer);
+    $$('[data-close-photo-viewer]').forEach(function (node) {
+      node.addEventListener('click', closePhotoViewer);
+    });
 
     window.addEventListener('beforeinstallprompt', function (event) {
       event.preventDefault();
@@ -3695,11 +4179,15 @@
       }, 700);
     }
 
-    if (nativeApp) {
-      window.setTimeout(function () {
-        if (updatePhase === 'idle') checkForUpdates(false);
-      }, 2600);
-    }
+    const checkUpdatesWhenClosed = function () {
+      if (updatePhase !== 'idle') return;
+      if (el.settingsLayer && !el.settingsLayer.hidden) {
+        window.setTimeout(checkUpdatesWhenClosed, 3000);
+        return;
+      }
+      checkForUpdates(false);
+    };
+    window.setTimeout(checkUpdatesWhenClosed, 2600);
   }
 
   init();

@@ -3474,3 +3474,323 @@ body.calendar-open { overflow: hidden; }
 }
 
 .calendar-day.is-selected.has-plan::before { background: #ffb8a6; }
+
+/* ---------- v1.3 拍照打卡、日历与稳定性修复 ---------- */
+.task-tools {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.task-tools .task-remove { margin: 0; }
+
+.task-camera {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  margin: 0;
+  border: 1px solid rgba(89, 139, 121, .16);
+  border-radius: 8px;
+  color: rgba(54, 112, 95, .76);
+  background: rgba(89, 139, 121, .07);
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.task-camera svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.task-camera:hover,
+.task-camera:focus-visible {
+  color: #286d59;
+  border-color: rgba(89, 139, 121, .3);
+  background: rgba(89, 139, 121, .14);
+}
+
+.task-camera.has-photo {
+  color: #236b55;
+  border-color: rgba(52, 139, 108, .32);
+  background: rgba(70, 155, 121, .17);
+}
+
+.task-item.is-done .task-camera { opacity: .72; }
+
+.photo-sheet-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 355;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.photo-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: rgba(5, 2, 8, .7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: opacity .24s ease;
+}
+
+.photo-sheet {
+  position: relative;
+  z-index: 1;
+  width: min(430px, 94vw);
+  padding: 23px 22px 17px;
+  border: 1px solid rgba(255, 248, 236, .8);
+  border-radius: 24px;
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse 80% 50% at 100% 0%, rgba(255, 255, 255, .72), transparent 66%),
+    linear-gradient(155deg, #fffaf1, #f6e5cb);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .62);
+  opacity: 0;
+  transform: translateY(16px) scale(.985);
+  transition: opacity .24s ease, transform .3s cubic-bezier(.22, .8, .25, 1);
+}
+
+.photo-sheet-layer.is-open .photo-sheet-backdrop { opacity: 1; }
+.photo-sheet-layer.is-open .photo-sheet { opacity: 1; transform: translateY(0) scale(1); }
+
+.photo-sheet-mark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 11px;
+  border: 1px solid rgba(118, 71, 49, .13);
+  border-radius: 14px;
+  font-size: 21px;
+  background: rgba(255, 255, 255, .55);
+}
+
+.photo-sheet h2 {
+  margin-top: 4px;
+  color: #402331;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  line-height: 1.2;
+}
+
+.photo-sheet-task {
+  margin-top: 8px;
+  color: #62424a;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.photo-sheet-hint {
+  margin-top: 6px;
+  color: #a18778;
+  font-size: 9.5px;
+  line-height: 1.7;
+}
+
+.photo-sheet-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 17px;
+}
+
+.photo-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 10px;
+  border: 1px solid rgba(112, 70, 53, .16);
+  border-radius: 11px;
+  color: #68463d;
+  background: rgba(255, 255, 255, .45);
+  font-size: 10.5px;
+  font-weight: 700;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.photo-action:hover { background: rgba(255, 255, 255, .78); border-color: rgba(112, 70, 53, .3); }
+.photo-action:active { transform: translateY(1px); }
+
+.photo-action-primary {
+  border-color: transparent;
+  color: #fff8e8;
+  background: linear-gradient(180deg, #a6424a, #71303c);
+  box-shadow: 0 7px 16px -8px rgba(107, 41, 50, .6);
+}
+
+.photo-action-primary:hover { color: #fff; background: linear-gradient(180deg, #b34b52, #7d3541); }
+
+.photo-sheet-cancel {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px 0 2px;
+  color: #a18b80;
+  font-size: 9.5px;
+  text-align: center;
+}
+
+.photo-sheet-cancel:hover { color: #6f4c44; }
+
+body.photo-open,
+body.photo-viewer-open { overflow: hidden; }
+
+.photo-viewer-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 380;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+}
+
+.photo-viewer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 2, 5, .9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.photo-viewer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: min(900px, 94vw);
+  max-height: 92vh;
+  max-height: 92dvh;
+}
+
+.photo-viewer-image {
+  display: block;
+  max-width: 100%;
+  max-height: min(78vh, 78dvh);
+  border: 1px solid rgba(255, 248, 235, .28);
+  border-radius: 12px;
+  object-fit: contain;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .7);
+}
+
+.photo-viewer-close {
+  position: absolute;
+  top: -38px;
+  right: -4px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 241, 213, .25);
+  border-radius: 50%;
+  color: #ffe9c6;
+  background: rgba(20, 10, 15, .5);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.photo-viewer-close:hover { background: rgba(20, 10, 15, .8); }
+
+.photo-viewer-caption {
+  max-width: 100%;
+  margin-top: 12px;
+  color: rgba(255, 240, 214, .7);
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.photo-viewer-empty {
+  padding: 35px 25px;
+  border: 1px dashed rgba(255, 233, 197, .25);
+  border-radius: 14px;
+  color: rgba(255, 236, 206, .65);
+  font-size: 10px;
+  text-align: center;
+}
+
+/* Calendar: keep every task row inside the day panel. */
+.calendar-day-panel { overflow: hidden; }
+.calendar-day-head > div { min-width: 0; flex: 1; }
+.calendar-day-head h3 { overflow-wrap: anywhere; }
+.calendar-task-list { width: 100%; min-width: 0; }
+.calendar-task-item { width: 100%; min-width: 0; overflow: hidden; }
+.calendar-task-text { flex: 1; min-width: 0; overflow-wrap: anywhere; word-break: break-word; }
+.calendar-stars { flex: 0 0 auto; }
+
+.calendar-photo-btn {
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 23px;
+  border: 1px solid rgba(73, 137, 112, .25);
+  border-radius: 7px;
+  color: #3d8367;
+  background: rgba(95, 167, 133, .13);
+  cursor: pointer;
+}
+
+.calendar-photo-btn svg { width: 13px; height: 13px; display: block; }
+.calendar-photo-btn:hover { background: rgba(95, 167, 133, .24); }
+
+/* Settings: keep the drawer's paint stable while it slides and content updates. */
+.settings-drawer {
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.spin-button.is-spinning {
+  pointer-events: auto;
+  cursor: wait;
+}
+
+.spin-button.is-cooldown { cursor: default; }
+
+@media (max-width: 760px) {
+  .task-tools { gap: 4px; }
+  .task-tools .task-camera,
+  .task-tools .task-remove {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+  }
+
+  .photo-sheet-layer {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .photo-sheet {
+    width: 100%;
+    max-height: 92vh;
+    max-height: 92dvh;
+    padding: 20px 18px max(14px, env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0;
+    transform: translateY(24px);
+  }
+
+  .photo-sheet h2 { font-size: 22px; }
+  .photo-sheet-task { font-size: 12px; }
+  .photo-action { height: 44px; font-size: 10px; }
+}
+
+.photo-tag { color: #3f8c70; }
+.result-card.is-photo { border-color: rgba(109, 218, 193, .32); }
+.calendar-day-head h3 { font-size: 20px; }

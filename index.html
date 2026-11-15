@@ -20,7 +20,7 @@
 <meta property="og:description" content="写下今日任务，完成获得摇奖券，摇出 777 和水果好运。">
 <meta property="og:image" content="https://wangji330330-ops.github.io/115/assets/icon-512.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="assets/style.css?v=7">
+<link rel="stylesheet" href="assets/style.css?v=8">
 </head>
 <body>
 <div class="ambient" aria-hidden="true">
@@ -153,11 +153,11 @@
               <span class="result-reward" id="resultReward"></span>
             </div>
             <p class="result-text" id="resultText">今天也不用很厉害，先完成一件小事就好。</p>
-            <p class="result-hint" id="resultHint">每完成 1 个任务，收获 1 张摇奖券。</p>
+            <p class="result-hint" id="resultHint">拍照打卡完成 1 个任务，收获 1 张摇奖券。</p>
           </div>
 
           <div class="rule-strip" id="keyboardHint">
-            <span><b>玩法</b> 完成 1 个任务 = 1 张摇奖券 · 每次摇奖消耗 1 张</span>
+            <span><b>玩法</b> 拍照打卡完成 1 个任务 = 1 张摇奖券 · 每次摇奖消耗 1 张</span>
             <span class="key-tip">按 <kbd>空格</kbd> 也能摇</span>
           </div>
         </div>
@@ -194,7 +194,7 @@
           <span aria-hidden="true">🎲</span>
         </button>
       </form>
-      <p class="form-hint">不知道做什么？点骰子，随机抽一件小事。</p>
+      <p class="form-hint">完成任务前要拍照打卡；不知道做什么，点骰子随机抽一件。</p>
 
       <div class="idea-row" aria-label="任务灵感">
         <span>试试</span>
@@ -245,7 +245,7 @@
       <section class="settings-section" aria-labelledby="settingsVersionHead">
         <div class="settings-section-head">
           <h3 id="settingsVersionHead"><span aria-hidden="true">✦</span> 版本更新</h3>
-          <span class="version-chip" id="currentVersionChip">v1.2.2</span>
+          <span class="version-chip" id="currentVersionChip">v1.3.0</span>
         </div>
         <div class="update-box">
           <div class="update-top">
@@ -319,7 +319,7 @@
         <div class="settings-row">
           <div class="settings-row-copy">
             <strong>导出学习记录</strong>
-            <p>任务、灵感星、连胜和摇奖记录都会写进 JSON 备份。</p>
+            <p>任务、灵感星、连胜和摇奖记录会写进 JSON 备份；打卡照片只留在本机。</p>
           </div>
           <button class="settings-secondary" id="exportBtn" type="button">导出</button>
         </div>
@@ -349,14 +349,14 @@
         <div class="settings-row settings-danger-row">
           <div class="settings-row-copy">
             <strong>清空所有记录</strong>
-            <p>任务、灵感星、连胜和设置都会被清除，且不能恢复。</p>
+            <p>任务、灵感星、连胜、打卡照片和设置都会被清除，且不能恢复。</p>
           </div>
           <button class="settings-danger-btn" id="clearDataBtn" type="button">清空</button>
         </div>
       </section>
 
       <footer class="settings-foot">
-        <span id="settingsBuild">v1.2.2 · 本机数据</span>
+        <span id="settingsBuild">v1.3.0 · 本机数据</span>
         <button id="settingsDoneBtn" type="button">完成</button>
       </footer>
     </div>
@@ -419,10 +419,43 @@
   </section>
 </div>
 
+<div class="photo-sheet-layer" id="photoSheetLayer" hidden>
+  <div class="photo-sheet-backdrop" data-close-photo-sheet></div>
+  <section class="photo-sheet" id="photoSheet" role="dialog" aria-modal="true" aria-labelledby="photoSheetTitle" tabindex="-1">
+    <span class="photo-sheet-mark" aria-hidden="true">📷</span>
+    <p class="eyebrow">PHOTO CHECK-IN</p>
+    <h2 id="photoSheetTitle">拍照打卡</h2>
+    <p class="photo-sheet-task" id="photoSheetTask"></p>
+    <p class="photo-sheet-hint">拍一张今天的照片，完成后自动领取奖励。照片只保存在本机。</p>
+    <div class="photo-sheet-actions">
+      <button class="photo-action photo-action-primary" id="photoTakeBtn" type="button">
+        <span aria-hidden="true">📸</span> 拍照
+      </button>
+      <button class="photo-action" id="photoPickBtn" type="button">
+        <span aria-hidden="true">🖼️</span> 从相册选择
+      </button>
+    </div>
+    <button class="photo-sheet-cancel" id="photoCancelBtn" type="button">取消</button>
+  </section>
+</div>
+
+<div class="photo-viewer-layer" id="photoViewerLayer" hidden>
+  <div class="photo-viewer-backdrop" data-close-photo-viewer></div>
+  <figure class="photo-viewer" id="photoViewer" role="dialog" aria-modal="true" aria-labelledby="photoViewerCaption" tabindex="-1">
+    <button class="photo-viewer-close" id="photoViewerClose" type="button" aria-label="关闭打卡照片">×</button>
+    <img class="photo-viewer-image" id="photoViewerImage" alt="打卡照片" hidden>
+    <p class="photo-viewer-empty" id="photoViewerEmpty" hidden>这张打卡照片不在这台设备上。</p>
+    <figcaption class="photo-viewer-caption" id="photoViewerCaption"></figcaption>
+  </figure>
+</div>
+
+<input id="photoCameraInput" type="file" accept="image/*" capture="environment" hidden>
+<input id="photoGalleryInput" type="file" accept="image/*" hidden>
+
 <div class="toast-host" id="toastHost" aria-live="polite" aria-atomic="false"></div>
 <p class="sr-only" id="srStatus" role="status" aria-live="polite"></p>
 <noscript><div class="noscript-note">这台老虎机需要开启 JavaScript 才能摇起来。</div></noscript>
 
-<script src="assets/app.js?v=7" defer></script>
+<script src="assets/app.js?v=8" defer></script>
 </body>
 </html>

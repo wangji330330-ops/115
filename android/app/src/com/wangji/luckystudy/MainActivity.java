@@ -1,10 +1,12 @@
 package com.wangji.luckystudy;
 
 import android.app.Activity;
+import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.ValueCallback;
@@ -16,6 +18,7 @@ import android.webkit.WebViewClient;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -39,12 +42,15 @@ public class MainActivity extends Activity {
 
     private static final int BASE_PORT = 17315;
     private static final int IMPORT_FILE_REQUEST = 701;
+    private static final int CAMERA_FILE_REQUEST = 702;
+    private static final int GALLERY_FILE_REQUEST = 703;
     private static final String ASSET_ROOT = "www/";
     private static final String BG = "#0B0810";
 
     private WebView webView;
     private NativeBridge nativeBridge;
     private ValueCallback<Uri[]> fileChooserCallback;
+    private Uri pendingCameraUri;
     private ServerSocket serverSocket;
     private int port;
 
@@ -66,7 +72,9 @@ public class MainActivity extends Activity {
         settings.setDatabaseEnabled(true);
         // 允许 file:// 仅作为本地 HTTP 服务启动失败时的兜底；页面自身没有外部内容。
         settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(false);
+        // File inputs need to read the camera/gallery content:// URIs handed back
+        // by onShowFileChooser. The page itself stays local-only.
+        settings.setAllowContentAccess(true);
         // 禁止 WebView 的缩放与“自动适配”：界面始终按 CSS 像素 1:1 渲染。
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
@@ -92,21 +100,26 @@ public class MainActivity extends Activity {
                     fileChooserCallback.onReceiveValue(null);
                 }
                 fileChooserCallback = callback;
-                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                intent.setType("*/*");
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                try {
-                    startActivityForResult(
-                            Intent.createChooser(intent, "选择学习记录备份"),
-                            IMPORT_FILE_REQUEST
-                    );
-                    return true;
-                } catch (Exception error) {
-                    fileChooserCallback = null;
-                    callback.onReceiveValue(null);
-                    return false;
+
+                String[] acceptTypes = params.getAcceptTypes();
+                boolean wantsImage = false;
+                if (acceptTypes != null) {
+                    for (String type : acceptTypes) {
+                        if (type != null && type.toLowerCase(Locale.US).contains("image")) {
+                            wantsImage = true;
+                            break;
+                        }
+                    }
                 }
+
+                if (params.isCaptureEnabled()) {
+                    openCamera();
+                } else if (wantsImage) {
+                    openImageGallery();
+                } else {
+                    openImportPicker();
+                }
+                return true;
             }
         });
 
@@ -134,6 +147,77 @@ public class MainActivity extends Activity {
             // 极端情况下端口全部被占用，退回 file://，至少页面还能打开。
             webView.loadUrl("file:///android_asset/www/index.html?app=1");
         }
+    }
+
+    private void openCamera() {
+        try {
+            File dir = new File(getCacheDir(), "photos");
+            if (!dir.isDirectory() && !dir.mkdirs()) {
+                throw new IOException("Cannot create photo cache");
+            }
+            File output = new File(dir, "checkin-" + System.currentTimeMillis() + ".jpg");
+            pendingCameraUri = PhotoFileProvider.uriForFile(this, output);
+            Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            intent.putExtra(MediaStore.EXTRA_OUTPUT, pendingCameraUri);
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(intent, CAMERA_FILE_REQUEST);
+        } catch (Exception error) {
+            pendingCameraUri = null;
+            openImageGallery();
+        }
+    }
+
+    private void openImageGallery() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("image/*");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(
+                    Intent.createChooser(intent, "选择打卡照片"),
+                    GALLERY_FILE_REQUEST
+            );
+        } catch (Exception error) {
+            finishFileChooser(null);
+        }
+    }
+
+    private void openImportPicker() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("*/*");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(
+                    Intent.createChooser(intent, "选择学习记录备份"),
+                    IMPORT_FILE_REQUEST
+            );
+        } catch (Exception error) {
+            finishFileChooser(null);
+        }
+    }
+
+    private void finishFileChooser(Uri[] results) {
+        ValueCallback<Uri[]> callback = fileChooserCallback;
+        fileChooserCallback = null;
+        if (callback != null) {
+            callback.onReceiveValue(results);
+        }
+    }
+
+    private Uri[] urisFromIntent(Intent data) {
+        if (data == null) return null;
+        ClipData clip = data.getClipData();
+        if (clip != null && clip.getItemCount() > 0) {
+            Uri[] results = new Uri[clip.getItemCount()];
+            for (int i = 0; i < clip.getItemCount(); i += 1) {
+                results[i] = clip.getItemAt(i).getUri();
+            }
+            return results;
+        }
+        Uri uri = data.getData();
+        return uri == null ? null : new Uri[]{uri};
     }
 
     private void startLocalServer() {
@@ -307,22 +391,26 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (requestCode == IMPORT_FILE_REQUEST) {
+        if (requestCode == CAMERA_FILE_REQUEST) {
             if (fileChooserCallback == null) return;
             Uri[] results = null;
-            if (resultCode == RESULT_OK && data != null) {
-                if (data.getClipData() != null) {
-                    int count = data.getClipData().getItemCount();
-                    results = new Uri[count];
-                    for (int i = 0; i < count; i += 1) {
-                        results[i] = data.getClipData().getItemAt(i).getUri();
-                    }
-                } else if (data.getData() != null) {
-                    results = new Uri[]{data.getData()};
-                }
+            if (resultCode == RESULT_OK && pendingCameraUri != null) {
+                results = new Uri[]{pendingCameraUri};
             }
-            fileChooserCallback.onReceiveValue(results);
-            fileChooserCallback = null;
+            pendingCameraUri = null;
+            finishFileChooser(results);
+            return;
+        }
+
+        if (requestCode == GALLERY_FILE_REQUEST) {
+            if (fileChooserCallback == null) return;
+            finishFileChooser(resultCode == RESULT_OK ? urisFromIntent(data) : null);
+            return;
+        }
+
+        if (requestCode == IMPORT_FILE_REQUEST) {
+            if (fileChooserCallback == null) return;
+            finishFileChooser(resultCode == RESULT_OK ? urisFromIntent(data) : null);
             return;
         }
 
