@@ -4315,3 +4315,68 @@ html.theme-light .confirm-box.is-danger .confirm-mark {
   background: rgba(186, 70, 60, .07);
 }
 html.theme-light .confirm-actions { border-top-color: rgba(115, 75, 55, .12); }
+
+/* Inline “全部” view: expand inside the day frame and scroll there. */
+.calendar-day-panel { overflow: visible; }
+.calendar-day-foot {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(119, 75, 55, .12);
+}
+.calendar-task-list.is-expanded {
+  max-height: 238px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(135, 93, 63, .28) transparent;
+}
+.calendar-show-all {
+  min-height: 28px;
+  border-color: rgba(135, 88, 55, .26);
+  background: rgba(255, 255, 255, .62);
+}
+.calendar-show-all-chevron { font-family: var(--font-mono); font-size: 11px; line-height: 1; }
+.calendar-photo-btn {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.calendar-photo-btn.has-thumb { background: #e7efe8; }
+.calendar-photo-btn img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.calendar-all-list .calendar-photo-btn { width: 34px; height: 34px; flex-basis: 34px; }
+@media (max-width: 760px) {
+  .calendar-task-list.is-expanded { max-height: 218px; }
+  .calendar-photo-btn { width: 32px; height: 32px; flex-basis: 32px; }
+}
+
+.calendar-task-list.is-expanded { max-height: 188px; }
+@media (max-width: 760px) { .calendar-task-list.is-expanded { max-height: 180px; } }
+
+.calendar-task-list .calendar-task-item { flex: 0 0 auto; }
+.calendar-all-list .calendar-task-item { flex: 0 0 auto; }
+
+.calendar-task-list.is-expanded {
+  flex: 0 0 176px;
+  height: 176px;
+}
+@media (max-width: 760px) {
+  .calendar-task-list.is-expanded {
+    flex-basis: 156px;
+    height: 156px;
+  }
+}
+
+.calendar-content { align-items: start; }
+.calendar-day-panel { height: auto; align-self: start; }

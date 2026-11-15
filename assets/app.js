@@ -196,15 +196,14 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.4.0';
-  const APP_VERSION_CODE = 9;
+  const APP_VERSION = '1.4.1';
+  const APP_VERSION_CODE = 10;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '奖励已领取的任务再次完成时不再要求拍照',
-    '日历只展示前 3 项，右下角「全部」可查看完整清单',
-    '新增音效旁的太阳/月亮按钮，可切换亮色与深色主题',
-    '安卓版关闭高耗能背景动画和模糊，减少掉帧',
-    '打卡照片压缩到 1280px，只存本机并在设置里显示占用；不参与 JSON 备份'
+    '日历「全部」改为框内展开并滑动查看，不再打开大弹窗',
+    '全部按钮固定在日期框右下角，不再被裁切',
+    '日历任务会直接显示打卡照片缩略图',
+    '保留亮色/深色主题、重复完成免拍照和安卓性能模式'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -1199,7 +1198,9 @@
     calendarTaskList: $('#calendarTaskList'),
     calendarDayEmpty: $('#calendarDayEmpty'),
     calendarShowAll: $('#calendarShowAll'),
+    calendarShowAllLabel: $('#calendarShowAllLabel'),
     calendarShowAllCount: $('#calendarShowAllCount'),
+    calendarShowAllChevron: $('#calendarShowAllChevron'),
     calendarAllLayer: $('#calendarAllLayer'),
     calendarAllModal: $('#calendarAllModal'),
     calendarAllClose: $('#calendarAllClose'),
@@ -1263,6 +1264,8 @@
   let calendarCloseTimer = 0;
   let calendarAllLastFocus = null;
   let calendarAllCloseTimer = 0;
+  let calendarAllExpanded = false;
+  const calendarPhotoUrlCache = new Map();
   let photoTaskId = null;
   let photoLastFocus = null;
   let photoCloseTimer = 0;
@@ -2879,6 +2882,35 @@
     return Math.abs(diff) + '天前';
   }
 
+  function applyCalendarThumb(button, url) {
+    if (!button || !url) return;
+    button.classList.add('has-thumb');
+    button.innerHTML = '';
+    const image = document.createElement('img');
+    image.alt = '';
+    image.loading = 'lazy';
+    image.decoding = 'async';
+    image.src = url;
+    button.appendChild(image);
+  }
+
+  function hydrateCalendarPhoto(button, photoId) {
+    if (!button || !photoId) return;
+    const cached = calendarPhotoUrlCache.get(photoId);
+    if (cached) {
+      applyCalendarThumb(button, cached);
+      return;
+    }
+    getPhotoRecord(photoId).then(function (record) {
+      if (!record || !record.blob) return;
+      const url = URL.createObjectURL(record.blob);
+      calendarPhotoUrlCache.set(photoId, url);
+      applyCalendarThumb(button, url);
+    }).catch(function () {
+      // Keep the camera fallback icon.
+    });
+  }
+
   function makeCalendarTaskItem(task, key) {
     const li = document.createElement('li');
     li.className = 'calendar-task-item' + (task.done ? ' is-done' : '');
@@ -2901,6 +2933,7 @@
       photo.title = '查看打卡照片';
       photo.innerHTML = calendarPhotoIconMarkup();
       li.appendChild(photo);
+      hydrateCalendarPhoto(photo, task.photoId);
     }
     return li;
   }
@@ -2928,14 +2961,21 @@
       el.calendarDaySummary.textContent = summary;
     }
 
+    const showingAll = calendarAllExpanded && tasks.length > 3;
     while (el.calendarTaskList.firstChild) el.calendarTaskList.removeChild(el.calendarTaskList.firstChild);
-    tasks.slice(0, 3).forEach(function (task) {
+    (showingAll ? tasks : tasks.slice(0, 3)).forEach(function (task) {
       el.calendarTaskList.appendChild(makeCalendarTaskItem(task, key));
     });
+    el.calendarTaskList.classList.toggle('is-expanded', showingAll);
     const hasMore = tasks.length > 3;
     if (el.calendarShowAll) {
       el.calendarShowAll.hidden = !hasMore;
-      if (el.calendarShowAllCount) el.calendarShowAllCount.textContent = String(tasks.length);
+      if (el.calendarShowAllLabel) el.calendarShowAllLabel.textContent = showingAll ? '收起' : '全部';
+      if (el.calendarShowAllCount) {
+        el.calendarShowAllCount.textContent = String(tasks.length);
+        el.calendarShowAllCount.hidden = showingAll;
+      }
+      if (el.calendarShowAllChevron) el.calendarShowAllChevron.textContent = showingAll ? '↑' : '›';
     }
 
     el.calendarDayEmpty.hidden = tasks.length > 0;
@@ -3023,6 +3063,7 @@
     const d = parseDateKey(today);
     calendarView = { year: d.getFullYear(), month: d.getMonth() };
     calendarSelectedKey = today;
+    calendarAllExpanded = false;
     renderCalendar();
     hideToast();
     window.clearTimeout(calendarCloseTimer);
@@ -3064,12 +3105,14 @@
     calendarSelectedKey = (todayDate.getFullYear() === calendarView.year && todayDate.getMonth() === calendarView.month)
       ? today
       : dateKey(new Date(calendarView.year, calendarView.month, 1, 12, 0, 0, 0));
+    calendarAllExpanded = false;
     renderCalendar();
   }
 
   function selectCalendarDate(key) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return;
     calendarSelectedKey = key;
+    calendarAllExpanded = false;
     const d = parseDateKey(key);
     calendarView = { year: d.getFullYear(), month: d.getMonth() };
     renderCalendar();
@@ -4217,6 +4260,7 @@
       const d = parseDateKey(today);
       calendarView = { year: d.getFullYear(), month: d.getMonth() };
       calendarSelectedKey = today;
+      calendarAllExpanded = false;
       renderCalendar();
     });
     el.calendarGrid.addEventListener('click', function (event) {
@@ -4229,7 +4273,12 @@
       if (!photo) return;
       openPhotoViewer(photo.dataset.calendarPhoto, photo.dataset.photoCaption || '');
     });
-    el.calendarShowAll.addEventListener('click', openCalendarAll);
+    el.calendarShowAll.addEventListener('click', function () {
+      const tasks = calendarDayTasks(calendarSelectedKey);
+      if (tasks.length <= 3) return;
+      calendarAllExpanded = !calendarAllExpanded;
+      renderCalendarDayDetail(calendarSelectedKey);
+    });
     el.calendarAllClose.addEventListener('click', closeCalendarAll);
     $$('[data-close-calendar-all]').forEach(function (node) {
       node.addEventListener('click', closeCalendarAll);

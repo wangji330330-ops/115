@@ -1,18 +1,17 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 9,
-  "versionName": "1.4.0",
+  "versionCode": 10,
+  "versionName": "1.4.1",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk?v=140",
-  "sha256": "85c0d800fa12caef5055269a2400887d5a6e979063f78821685631c1d0a09264",
-  "size": 378399,
+  "apkUrl": "lucky-study-machine.apk?v=141",
+  "sha256": "bff3b45815518f74c3e9532343dc2dd1e12eddfea754025290a735727e87da37",
+  "size": 382495,
   "notes": [
-    "奖励已领取的任务再次完成时不再要求拍照",
-    "日历只展示前 3 项，右下角「全部」可查看完整清单",
-    "新增音效旁的太阳/月亮按钮，可切换亮色与深色主题",
-    "安卓版关闭高耗能背景动画和模糊，减少掉帧",
-    "打卡照片压缩到 1280px，只存本机并显示占用；不参与 JSON 备份"
+    "日历「全部」改为框内展开并滑动，不再打开大弹窗",
+    "全部按钮固定在日期框右下角，不再被裁切",
+    "日历任务会直接显示打卡照片缩略图",
+    "保留亮色/深色主题、重复完成免拍照和安卓性能模式"
   ]
 }

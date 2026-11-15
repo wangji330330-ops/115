@@ -4,10 +4,16 @@
 
 一台可以认真做任务、也可以认真摇奖的老虎机。现在它叫 **幸运机**：每日、每周、每月循环任务会自动出现，日期任务可以提前安排；完成任务换摇奖券，摇出 777、水果与星星。
 
-**当前版本：v1.4.0（versionCode 9）**
+**当前版本：v1.4.1（versionCode 10）**
 
 - **在线玩：<https://wangji330330-ops.github.io/115/>**
 - **安卓安装包：[lucky-study-machine.apk](https://wangji330330-ops.github.io/115/lucky-study-machine.apk)**（Android 7.0+，离线可玩）
+
+## v1.4.1 更新内容
+
+- **日历「全部」修复**：不再打开大尺寸弹窗，而是在日期框内展开任务列表，列表可上下滑动；「全部」/「收起」按钮固定在框的右下角，不会被裁切。
+- **日历照片**：打卡过的任务会在日历里显示照片缩略图，点击可看大图。
+- 其余功能与 v1.4.0 相同。
 
 ## v1.4.0 更新内容
 
@@ -88,8 +94,6 @@
 
 ![学习日历](docs/preview-calendar.png)
 
-![全部任务](docs/preview-calendar-all.png)
-
 ## 说明
 
 - 逻辑日从每天 **04:00** 开始；凌晨 03:59 仍属于前一天。
@@ -135,7 +139,7 @@ assets/icon*               777 App / PWA 图标
 manifest.webmanifest       PWA 清单
 sw.js                      线上离线缓存
 update.json                安卓/网页更新清单
-lucky-study-machine.apk    已签名安装包（v1.4.0）
+lucky-study-machine.apk    已签名安装包（v1.4.1）
 docs/                      预览图
 android/                   APK 工程与免 Gradle 构建脚本
   app/src/                 MainActivity、NativeBridge、UpdateManager、
