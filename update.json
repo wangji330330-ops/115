@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 10,
-  "versionName": "1.4.1",
+  "versionCode": 11,
+  "versionName": "1.4.2",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk?v=141",
-  "sha256": "bff3b45815518f74c3e9532343dc2dd1e12eddfea754025290a735727e87da37",
+  "apkUrl": "lucky-study-machine.apk?v=142",
+  "sha256": "90b038ddc5a13d86fa05b236390985a7a6e44c800764ec5d665a72045c1ec6f3",
   "size": 382495,
   "notes": [
-    "日历「全部」改为框内展开并滑动，不再打开大弹窗",
-    "全部按钮固定在日期框右下角，不再被裁切",
-    "日历任务会直接显示打卡照片缩略图",
+    "日历打卡改为小相机图标，点开才查看照片，不在外面直接显示缩略图",
+    "关闭照片查看器立即返回，不再先卡掉图片再退出",
+    "「全部」继续在日期框内展开并滑动，按钮固定在右下角",
     "保留亮色/深色主题、重复完成免拍照和安卓性能模式"
   ]
 }

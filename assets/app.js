@@ -196,13 +196,13 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.4.1';
-  const APP_VERSION_CODE = 10;
+  const APP_VERSION = '1.4.2';
+  const APP_VERSION_CODE = 11;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '日历「全部」改为框内展开并滑动查看，不再打开大弹窗',
-    '全部按钮固定在日期框右下角，不再被裁切',
-    '日历任务会直接显示打卡照片缩略图',
+    '日历打卡改为小相机图标，点开才查看照片，不在外面直接显示缩略图',
+    '关闭照片查看器立即返回，不再先卡掉图片再退出',
+    '「全部」继续在日期框内展开并滑动，按钮固定在右下角',
     '保留亮色/深色主题、重复完成免拍照和安卓性能模式'
   ];
 
@@ -1265,7 +1265,6 @@
   let calendarAllLastFocus = null;
   let calendarAllCloseTimer = 0;
   let calendarAllExpanded = false;
-  const calendarPhotoUrlCache = new Map();
   let photoTaskId = null;
   let photoLastFocus = null;
   let photoCloseTimer = 0;
@@ -2796,8 +2795,17 @@
   function closePhotoViewer() {
     if (!el.photoViewerLayer || el.photoViewerLayer.hidden) return;
     photoViewerToken += 1;
+    window.clearTimeout(photoViewerCloseTimer);
+    const shouldRestore = el.photoViewer.contains(document.activeElement);
+    const target = photoViewerLastFocus && document.contains(photoViewerLastFocus)
+      ? photoViewerLastFocus : el.streakPill;
+
+    // Hide the whole viewer in the same frame. Previously the image was
+    // cleared/revoked while a 260ms empty overlay was still on screen, which
+    // looked like the photo "卡掉一下" before returning.
+    el.photoViewerLayer.hidden = true;
     el.photoViewerLayer.classList.remove('is-open');
-    el.photoViewerLayer.style.pointerEvents = 'none';
+    el.photoViewerLayer.style.pointerEvents = '';
     document.body.classList.remove('photo-viewer-open');
     if (el.pageShell && 'inert' in el.pageShell) {
       el.pageShell.inert = !!((el.calendarLayer && !el.calendarLayer.hidden)
@@ -2805,24 +2813,13 @@
         || (el.photoSheetLayer && !el.photoSheetLayer.hidden)
         || (el.settingsLayer && !el.settingsLayer.hidden));
     }
-    window.clearTimeout(photoViewerCloseTimer);
-    if (photoViewerUrl) {
-      URL.revokeObjectURL(photoViewerUrl);
-      photoViewerUrl = '';
-    }
-    el.photoViewerImage.removeAttribute('src');
     el.photoViewerImage.hidden = true;
+    el.photoViewerImage.removeAttribute('src');
     el.photoViewerEmpty.hidden = true;
-    const shouldRestore = el.photoViewer.contains(document.activeElement);
-    photoViewerCloseTimer = window.setTimeout(function () {
-      if (el.photoViewerLayer.classList.contains('is-open')) return;
-      el.photoViewerLayer.hidden = true;
-      el.photoViewerLayer.style.pointerEvents = '';
-      if (!shouldRestore) return;
-      const target = photoViewerLastFocus && document.contains(photoViewerLastFocus)
-        ? photoViewerLastFocus : el.streakPill;
-      if (target) target.focus({ preventScroll: true });
-    }, 260);
+    const url = photoViewerUrl;
+    photoViewerUrl = '';
+    if (url) window.setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+    if (shouldRestore && target) target.focus({ preventScroll: true });
   }
 
   function viewTaskPhoto(task) {
@@ -2882,35 +2879,6 @@
     return Math.abs(diff) + '天前';
   }
 
-  function applyCalendarThumb(button, url) {
-    if (!button || !url) return;
-    button.classList.add('has-thumb');
-    button.innerHTML = '';
-    const image = document.createElement('img');
-    image.alt = '';
-    image.loading = 'lazy';
-    image.decoding = 'async';
-    image.src = url;
-    button.appendChild(image);
-  }
-
-  function hydrateCalendarPhoto(button, photoId) {
-    if (!button || !photoId) return;
-    const cached = calendarPhotoUrlCache.get(photoId);
-    if (cached) {
-      applyCalendarThumb(button, cached);
-      return;
-    }
-    getPhotoRecord(photoId).then(function (record) {
-      if (!record || !record.blob) return;
-      const url = URL.createObjectURL(record.blob);
-      calendarPhotoUrlCache.set(photoId, url);
-      applyCalendarThumb(button, url);
-    }).catch(function () {
-      // Keep the camera fallback icon.
-    });
-  }
-
   function makeCalendarTaskItem(task, key) {
     const li = document.createElement('li');
     li.className = 'calendar-task-item' + (task.done ? ' is-done' : '');
@@ -2933,7 +2901,6 @@
       photo.title = '查看打卡照片';
       photo.innerHTML = calendarPhotoIconMarkup();
       li.appendChild(photo);
-      hydrateCalendarPhoto(photo, task.photoId);
     }
     return li;
   }

@@ -4380,3 +4380,22 @@ html.theme-light .confirm-actions { border-top-color: rgba(115, 75, 55, .12); }
 
 .calendar-content { align-items: start; }
 .calendar-day-panel { height: auto; align-self: start; }
+
+/* Calendar check-in marker: icon only; the photo opens in the viewer. */
+.calendar-photo-btn {
+  width: 26px;
+  height: 26px;
+  flex-basis: 26px;
+  align-self: center;
+  border-color: rgba(73, 137, 112, .28);
+  border-radius: 7px;
+  color: #377b60;
+  background: rgba(95, 167, 133, .15);
+  padding: 0;
+  overflow: hidden;
+}
+.calendar-photo-btn svg { width: 15px; height: 15px; margin: auto; }
+.calendar-photo-btn:hover { color: #27684f; background: rgba(95, 167, 133, .26); }
+.calendar-all-list .calendar-photo-btn { width: 28px; height: 28px; flex-basis: 28px; }
+.calendar-all-list .calendar-photo-btn svg { width: 16px; height: 16px; }
+.calendar-photo-btn img { display: none; }
