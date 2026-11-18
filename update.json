@@ -1,17 +1,17 @@
 {
   "schema": 1,
   "packageName": "com.wangji.luckystudy",
-  "versionCode": 13,
-  "versionName": "1.4.4",
+  "versionCode": 14,
+  "versionName": "1.5.0",
   "publishedAt": "2026-11-15",
   "minSdk": 24,
-  "apkUrl": "lucky-study-machine.apk?v=144",
-  "sha256": "cee8eacded03b7eca3bf0dc193132e0f6bc384e68a5fbd02a059bb10b674ce28",
+  "apkUrl": "lucky-study-machine.apk?v=150",
+  "sha256": "8dd81ddc8008217796333a41b58ec9e5307ff868200034449e817f4cec7be54b",
   "size": 382495,
   "notes": [
-    "日历任务直接全部显示，可以在任务框里上下滑动查看",
-    "每个任务前加了序号",
-    "「全部 N 项」继续显示任务数量，但不再需要点击展开",
-    "其余功能与 v1.4.3 相同"
+    "摇奖后的鼓励语重写成更像朋友说话的句子，不再是模板腔",
+    "文案从聚光灯效应、峰终定律、负面偏差、目标梯度等取意，但不显示术语",
+    "没有加入政治或制度类主义，只保留能落到日常行动上的心理视角",
+    "奖励数值和玩法保持不变"
   ]
 }
