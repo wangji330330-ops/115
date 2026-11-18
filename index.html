@@ -34,7 +34,7 @@
 <meta property="og:description" content="写下今日任务，完成获得摇奖券，摇出 777 和水果好运。">
 <meta property="og:image" content="https://wangji330330-ops.github.io/115/assets/icon-512.png">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="stylesheet" href="assets/style.css?v=15">
+<link rel="stylesheet" href="assets/style.css?v=16">
 </head>
 <body>
 <div class="ambient" aria-hidden="true">
@@ -64,9 +64,10 @@
           <span><strong id="streakDays">0</strong><span class="stat-label"> 天连胜</span></span>
           <span class="stat-chevron" aria-hidden="true">›</span>
         </button>
-        <button class="stat-pill stat-pill-button" id="starsPill" type="button" title="点击刷新灵感数字" aria-label="灵感值，点击刷新数字">
+        <button class="stat-pill stat-pill-button" id="starsPill" type="button" title="打开灵感商店" aria-label="灵感值，点击打开灵感商店" aria-haspopup="dialog" aria-controls="shopLayer">
           <span class="stat-icon" aria-hidden="true">✦</span>
           <span><strong id="totalStars">0</strong><span class="stat-label"> 灵感</span></span>
+          <span class="stat-shop-arrow" aria-hidden="true">↗</span>
         </button>
       </div>
       <a class="apk-link" id="apkLink" href="lucky-study-machine.apk" download="幸运机.apk" title="下载安卓安装包">
@@ -175,7 +176,7 @@
               <span class="result-kicker" id="resultKicker">READY WHEN YOU ARE</span>
               <span class="result-reward" id="resultReward"></span>
             </div>
-            <p class="result-text" id="resultText">今天也不用很厉害，先完成一件小事就好。</p>
+            <p class="result-text" id="resultText">今天也不用很厉害，先做一件能让你稍微松口气的小事。</p>
             <p class="result-hint" id="resultHint">拍照打卡完成 1 个任务，收获 1 张摇奖券。</p>
           </div>
 
@@ -268,7 +269,7 @@
       <section class="settings-section" aria-labelledby="settingsVersionHead">
         <div class="settings-section-head">
           <h3 id="settingsVersionHead"><span aria-hidden="true">✦</span> 版本更新</h3>
-          <span class="version-chip" id="currentVersionChip">v1.5.0</span>
+          <span class="version-chip" id="currentVersionChip">v1.6.0</span>
         </div>
         <div class="update-box">
           <div class="update-top">
@@ -310,6 +311,20 @@
           <span>下载安卓安装包</span>
           <small>APK</small>
         </a>
+      </section>
+
+      <section class="settings-section" aria-labelledby="settingsShopHead">
+        <div class="settings-section-head">
+          <h3 id="settingsShopHead"><span aria-hidden="true">✦</span> 灵感商店</h3>
+          <span class="version-chip" id="settingsShopBalance">0 灵感</span>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-copy">
+            <strong>把灵感换成一点好东西</strong>
+            <p>摇奖券、幸运符、转轮皮肤。只在本机兑换，不花钱。</p>
+          </div>
+          <button class="settings-secondary" id="openShopBtn" type="button">进店</button>
+        </div>
       </section>
 
       <section class="settings-section" aria-labelledby="settingsPlanHead">
@@ -386,7 +401,7 @@
       </section>
 
       <footer class="settings-foot">
-        <span id="settingsBuild">v1.5.0 · 本机数据</span>
+        <span id="settingsBuild">v1.6.0 · 本机数据</span>
         <button id="settingsDoneBtn" type="button">完成</button>
       </footer>
     </div>
@@ -502,6 +517,28 @@
   </figure>
 </div>
 
+<div class="shop-layer" id="shopLayer" hidden>
+  <div class="shop-backdrop" data-close-shop></div>
+  <section class="shop-modal" id="shopModal" role="dialog" aria-modal="true" aria-labelledby="shopHeading" tabindex="-1">
+    <header class="shop-head">
+      <div>
+        <p class="eyebrow">LITTLE LUCK EXCHANGE</p>
+        <h2 id="shopHeading">灵感商店</h2>
+        <p class="shop-sub">把做完小事攒下的灵感，换成今天用得上的小东西。</p>
+      </div>
+      <button class="shop-close" id="shopClose" type="button" aria-label="关闭灵感商店">×</button>
+    </header>
+    <div class="shop-balance-row">
+      <span class="shop-balance-label">可用</span>
+      <strong class="shop-balance" id="shopStars">0</strong>
+      <span class="shop-balance-unit">灵感</span>
+      <span class="shop-balance-hint">不花钱 · 只在本机</span>
+    </div>
+    <div class="shop-list" id="shopList"></div>
+    <p class="shop-note">摇奖券每天 04:00 重置；转轮皮肤永久有效，只改外观，不改概率。</p>
+  </section>
+</div>
+
 <input id="photoCameraInput" type="file" accept="image/*" capture="environment" hidden>
 <input id="photoGalleryInput" type="file" accept="image/*" hidden>
 
@@ -509,6 +546,6 @@
 <p class="sr-only" id="srStatus" role="status" aria-live="polite"></p>
 <noscript><div class="noscript-note">这台老虎机需要开启 JavaScript 才能摇起来。</div></noscript>
 
-<script src="assets/app.js?v=15" defer></script>
+<script src="assets/app.js?v=16" defer></script>
 </body>
 </html>

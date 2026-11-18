@@ -4,10 +4,20 @@
 
 一台可以认真做任务、也可以认真摇奖的老虎机。现在它叫 **幸运机**：每日、每周、每月循环任务会自动出现，日期任务可以提前安排；完成任务换摇奖券，摇出 777、水果与星星。
 
-**当前版本：v1.5.0（versionCode 14）**
+**当前版本：v1.6.0（versionCode 15）**
 
 - **在线玩：<https://wangji330330-ops.github.io/115/>**
 - **安卓安装包：[lucky-study-machine.apk](https://wangji330330-ops.github.io/115/lucky-study-machine.apk)**（Android 7.0+，离线可玩）
+
+## v1.6.0 更新内容
+
+- **灵感商店**：点顶部「灵感」数字或设置里的「进店」，可以用灵感兑换摇奖券、幸运符和转轮皮肤。
+- **摇奖券**：60 灵感换 1 张，适合灵感多、今天还想再摇一次的时候；券仍按每天 04:00 重置。
+- **幸运符**：80 灵感换 1 个，下一摇不会空手；最多带 3 个，用完自动消耗。
+- **转轮皮肤**：糖果 / 夜航两种永久皮肤，150 灵感解锁；只改转盘外观，不改中奖概率。
+- **不花钱**：所有奖励只在本机生效，没有广告、充值或真实货币。
+
+<img src="docs/preview-shop.png" width="360" alt="灵感商店">
 
 ## v1.5.0 更新内容
 
@@ -166,7 +176,7 @@ assets/icon*               777 App / PWA 图标
 manifest.webmanifest       PWA 清单
 sw.js                      线上离线缓存
 update.json                安卓/网页更新清单
-lucky-study-machine.apk    已签名安装包（v1.5.0）
+lucky-study-machine.apk    已签名安装包（v1.6.0）
 docs/                      预览图
 android/                   APK 工程与免 Gradle 构建脚本
   app/src/                 MainActivity、NativeBridge、UpdateManager、

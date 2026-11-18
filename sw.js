@@ -1,10 +1,10 @@
 /* 幸运机 · 离线缓存（仅在 HTTPS 线上环境注册） */
-const CACHE_NAME = 'lucky-study-machine-v15';
+const CACHE_NAME = 'lucky-study-machine-v16';
 const APP_SHELL = [
   './',
   './index.html',
-  './assets/style.css?v=15',
-  './assets/app.js?v=15',
+  './assets/style.css?v=16',
+  './assets/app.js?v=16',
   './manifest.webmanifest',
   './assets/icon.svg',
   './assets/icon-192.png',

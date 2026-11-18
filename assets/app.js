@@ -275,14 +275,53 @@
     hint: '每完成 1 个任务，收获 1 张摇奖券。'
   };
 
-  const APP_VERSION = '1.5.0';
-  const APP_VERSION_CODE = 14;
+  const MAX_CHARMS = 3;
+  const SKIN_IDS = ['classic', 'candy', 'night'];
+  const SHOP_ITEMS = [
+    {
+      id: 'ticket',
+      kind: 'ticket',
+      name: '摇奖券',
+      icon: '🎟',
+      price: 60,
+      desc: '换一张，今天就能再摇一次。每天 04:00 会重置，别一次囤太多。'
+    },
+    {
+      id: 'charm',
+      kind: 'charm',
+      name: '幸运符',
+      icon: '🍀',
+      price: 80,
+      desc: '下一摇不会空手。只挡一局，最多带 3 个。'
+    },
+    {
+      id: 'skinCandy',
+      kind: 'skin',
+      skin: 'candy',
+      name: '糖果转轮',
+      icon: '🍬',
+      price: 150,
+      desc: '给转轮换一套糖纸配色，永久有效。只改外观，不改概率。'
+    },
+    {
+      id: 'skinNight',
+      kind: 'skin',
+      skin: 'night',
+      name: '夜航转轮',
+      icon: '🌙',
+      price: 150,
+      desc: '深蓝一点的转轮。永久有效，只改外观，不改概率。'
+    }
+  ];
+
+  const APP_VERSION = '1.6.0';
+  const APP_VERSION_CODE = 15;
   const UPDATE_PAGE_URL = 'https://wangji330330-ops.github.io/115/';
   const FALLBACK_RELEASE_NOTES = [
-    '摇奖后的鼓励语重写成更像朋友说话的句子，不再是模板腔',
-    '文案从聚光灯效应、峰终定律、负面偏差、目标梯度等取意，但不显示术语',
-    '没有加入政治或制度类主义，只保留能落到日常行动上的心理视角',
-    '奖励数值和玩法保持不变'
+    '新增灵感商店：用攒下的灵感换摇奖券、幸运符和转轮皮肤',
+    '幸运符让下一摇不会空手；转轮皮肤只改外观，不改概率',
+    '点顶部灵感数字或设置里的「进店」都能打开商店',
+    '所有奖励只在本机生效，不花钱，也没有广告'
   ];
 
   const params = new URLSearchParams(window.location.search);
@@ -587,6 +626,9 @@
       history: {},
       sound: true,
       theme: 'dark',
+      luckyCharms: 0,
+      reelSkin: 'classic',
+      unlockedSkins: ['classic'],
       updatedAt: 0
     };
   }
@@ -752,6 +794,14 @@
     fresh.history = sanitizeHistory(raw.history);
     fresh.sound = raw.sound !== false;
     fresh.theme = raw.theme === 'light' ? 'light' : 'dark';
+    fresh.luckyCharms = Number.isFinite(Number(raw.luckyCharms))
+      ? clamp(Math.floor(Number(raw.luckyCharms)), 0, MAX_CHARMS)
+      : 0;
+    const unlockedSkins = Array.isArray(raw.unlockedSkins)
+      ? raw.unlockedSkins.filter(function (skin) { return SKIN_IDS.indexOf(skin) >= 0; })
+      : [];
+    fresh.unlockedSkins = Array.from(new Set(['classic'].concat(unlockedSkins)));
+    fresh.reelSkin = fresh.unlockedSkins.indexOf(raw.reelSkin) >= 0 ? raw.reelSkin : 'classic';
     fresh.routines = sanitizeRoutines(raw.routines);
     fresh.scheduled = sanitizeScheduled(raw.scheduled);
     fresh.planSkips = sanitizePlanSkips(raw.planSkips);
@@ -1217,6 +1267,13 @@
     pageShell: $('.page-shell'),
     streakPill: $('#streakPill'),
     starsPill: $('#starsPill'),
+    shopLayer: $('#shopLayer'),
+    shopModal: $('#shopModal'),
+    shopClose: $('#shopClose'),
+    shopList: $('#shopList'),
+    shopStars: $('#shopStars'),
+    settingsShopBalance: $('#settingsShopBalance'),
+    openShopBtn: $('#openShopBtn'),
     settingsBtn: $('#settingsBtn'),
     settingsNewdot: $('#settingsNewdot'),
     settingsLayer: $('#settingsLayer'),
@@ -1311,6 +1368,7 @@
   let forcedTier = null;
   let lastQuote = '';
   let lastHint = '';
+  let shopLastFocus = null;
   let resizeTimer = 0;
   let resizedWhileSpinning = false;
 
@@ -1487,9 +1545,207 @@
     audio.ui();
   }
 
+  function applyReelSkin() {
+    if (!el.cabinet) return;
+    const unlocked = Array.isArray(state.unlockedSkins) ? state.unlockedSkins : ['classic'];
+    const skin = unlocked.indexOf(state.reelSkin) >= 0 ? state.reelSkin : 'classic';
+    if (skin !== state.reelSkin) state.reelSkin = skin;
+    el.cabinet.classList.toggle('skin-candy', skin === 'candy');
+    el.cabinet.classList.toggle('skin-night', skin === 'night');
+  }
+
+  function renderCharmStatus() {
+    if (!el.spinSub || !el.spinBtn || el.spinBtn.classList.contains('is-spinning')) return;
+    el.spinSub.textContent = state.luckyCharms > 0
+      ? '🍀 幸运符 ×' + state.luckyCharms
+      : 'SPIN FOR LUCK';
+  }
+
+  function renderShop() {
+    if (!el.shopList) return;
+    const stars = Math.max(0, Math.floor(state.totalStars));
+    if (el.shopStars) el.shopStars.textContent = formatNumber(stars);
+    if (el.settingsShopBalance) el.settingsShopBalance.textContent = formatNumber(stars) + ' 灵感';
+    while (el.shopList.firstChild) el.shopList.removeChild(el.shopList.firstChild);
+
+    SHOP_ITEMS.forEach(function (item) {
+      const card = document.createElement('div');
+      card.className = 'shop-item';
+      card.dataset.shopId = item.id;
+
+      const icon = document.createElement('span');
+      icon.className = 'shop-item-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.textContent = item.icon;
+
+      const copy = document.createElement('div');
+      copy.className = 'shop-item-copy';
+      const title = document.createElement('strong');
+      title.textContent = item.name;
+      const desc = document.createElement('p');
+      desc.textContent = item.desc;
+      copy.appendChild(title);
+      copy.appendChild(desc);
+
+      const side = document.createElement('div');
+      side.className = 'shop-item-side';
+      const price = document.createElement('span');
+      price.className = 'shop-price';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'shop-buy';
+      button.dataset.shopBuy = item.id;
+
+      let label = '';
+      let disabled = false;
+
+      if (item.kind === 'ticket') {
+        price.textContent = '✦ ' + item.price;
+        if (state.tickets >= MAX_TICKETS) {
+          label = '券已带满';
+          disabled = true;
+        } else if (stars < item.price) {
+          label = '灵感不够';
+          disabled = true;
+        } else {
+          label = '换 1 张';
+        }
+      } else if (item.kind === 'charm') {
+        price.textContent = '✦ ' + item.price + ' · 已有 ' + state.luckyCharms + '/' + MAX_CHARMS;
+        if (state.luckyCharms >= MAX_CHARMS) {
+          label = '已带满';
+          disabled = true;
+        } else if (stars < item.price) {
+          label = '灵感不够';
+          disabled = true;
+        } else {
+          label = '换 1 个';
+        }
+      } else if (item.kind === 'skin') {
+        const unlocked = state.unlockedSkins.indexOf(item.skin) >= 0;
+        const equipped = state.reelSkin === item.skin;
+        price.textContent = '✦ ' + item.price + ' · 永久';
+        if (equipped) {
+          label = '使用中';
+          disabled = true;
+          button.classList.add('is-equipped');
+        } else if (unlocked) {
+          label = '装备';
+        } else if (stars < item.price) {
+          label = '灵感不够';
+          disabled = true;
+        } else {
+          label = '解锁';
+        }
+      }
+
+      button.textContent = label;
+      button.disabled = disabled;
+      button.setAttribute('aria-label', item.name + '：' + label);
+      side.appendChild(price);
+      side.appendChild(button);
+      card.appendChild(icon);
+      card.appendChild(copy);
+      card.appendChild(side);
+      el.shopList.appendChild(card);
+    });
+  }
+
+  function spendStars(price) {
+    const cost = Math.max(0, Math.floor(Number(price) || 0));
+    if (state.totalStars < cost) {
+      showToast('还差 ' + (cost - state.totalStars) + ' 颗灵感。先做一件小事，或者等下一次摇奖。', 'info', 3600);
+      return false;
+    }
+    state.totalStars -= cost;
+    return true;
+  }
+
+  function buyShopItem(itemId) {
+    const item = SHOP_ITEMS.filter(function (entry) { return entry.id === itemId; })[0];
+    if (!item) return;
+
+    if (item.kind === 'ticket') {
+      if (state.tickets >= MAX_TICKETS) {
+        showToast('摇奖券已经带满了，先摇几次再来换。', 'info', 3000);
+        return;
+      }
+      if (!spendStars(item.price)) return;
+      state.tickets = clamp(state.tickets + 1, 0, MAX_TICKETS);
+      saveState();
+      renderTickets();
+      renderHeaderStats();
+      renderShop();
+      showToast('换到 1 张摇奖券。今天 04:00 会重置，够用就好。', 'win', 3400);
+      audio.ui();
+      return;
+    }
+
+    if (item.kind === 'charm') {
+      if (state.luckyCharms >= MAX_CHARMS) {
+        showToast('最多带 3 个幸运符，先用掉一个吧。', 'info', 3000);
+        return;
+      }
+      if (!spendStars(item.price)) return;
+      state.luckyCharms += 1;
+      saveState();
+      renderShop();
+      renderCharmStatus();
+      showToast('幸运符收好了。下一摇不会空手。', 'win', 3400);
+      audio.ui();
+      return;
+    }
+
+    if (item.kind === 'skin') {
+      const unlocked = state.unlockedSkins.indexOf(item.skin) >= 0;
+      if (!unlocked) {
+        if (!spendStars(item.price)) return;
+        state.unlockedSkins.push(item.skin);
+      }
+      state.reelSkin = item.skin;
+      saveState();
+      applyReelSkin();
+      renderShop();
+      showToast(unlocked ? '转轮换好了。只是好看，概率没变。' : '新转轮解锁了。只是好看，概率没变。', 'win', 3400);
+      audio.ui();
+    }
+  }
+
+  function openShop(trigger) {
+    if (!el.shopLayer || !el.shopLayer.hidden) return;
+    shopLastFocus = trigger || document.activeElement;
+    renderShop();
+    hideToast();
+    el.shopLayer.hidden = false;
+    document.body.classList.add('shop-open');
+    if (el.pageShell && 'inert' in el.pageShell) el.pageShell.inert = true;
+    window.requestAnimationFrame(function () {
+      if (el.shopClose) el.shopClose.focus({ preventScroll: true });
+    });
+  }
+
+  function closeShop() {
+    if (!el.shopLayer || el.shopLayer.hidden) return;
+    el.shopLayer.hidden = true;
+    document.body.classList.remove('shop-open');
+    if (el.pageShell && 'inert' in el.pageShell) {
+      el.pageShell.inert = !!((el.settingsLayer && !el.settingsLayer.hidden)
+        || (el.calendarLayer && !el.calendarLayer.hidden)
+        || (el.calendarAllLayer && !el.calendarAllLayer.hidden)
+        || (el.photoSheetLayer && !el.photoSheetLayer.hidden)
+        || (el.photoViewerLayer && !el.photoViewerLayer.hidden));
+    }
+    const fallback = el.settingsLayer && !el.settingsLayer.hidden ? el.openShopBtn : el.starsPill;
+    const target = shopLastFocus && document.contains(shopLastFocus) ? shopLastFocus : fallback;
+    if (target) target.focus({ preventScroll: true });
+  }
+
   function renderHeaderStats() {
     el.streakDays.textContent = String(calcStreak());
     animateNumber(el.totalStars, state.totalStars);
+    if (el.settingsShopBalance) {
+      el.settingsShopBalance.textContent = formatNumber(Math.max(0, Math.floor(state.totalStars))) + ' 灵感';
+    }
   }
 
   function renderTickets(bump) {
@@ -2237,18 +2493,20 @@
     const confirmOpen = el.confirmLayer && !el.confirmLayer.hidden;
     const photoViewerOpen = el.photoViewerLayer && !el.photoViewerLayer.hidden;
     const calendarAllOpen = el.calendarAllLayer && !el.calendarAllLayer.hidden;
+    const shopOpen = el.shopLayer && !el.shopLayer.hidden;
     const photoSheetOpen = el.photoSheetLayer && !el.photoSheetLayer.hidden;
     const calendarOpen = el.calendarLayer && !el.calendarLayer.hidden
       && !el.calendarLayer.style.pointerEvents;
     const settingsOpen = el.settingsLayer && !el.settingsLayer.hidden
       && !el.settingsLayer.classList.contains('is-closing');
-    if (!confirmOpen && !photoViewerOpen && !calendarAllOpen && !photoSheetOpen && !settingsOpen && !calendarOpen) return;
+    if (!confirmOpen && !photoViewerOpen && !calendarAllOpen && !shopOpen && !photoSheetOpen && !settingsOpen && !calendarOpen) return;
 
     if (event.key === 'Escape') {
       event.preventDefault();
       if (confirmOpen) settleConfirm('cancel');
       else if (photoViewerOpen) closePhotoViewer();
       else if (calendarAllOpen) closeCalendarAll();
+      else if (shopOpen) closeShop();
       else if (photoSheetOpen) closePhotoSheet(true);
       else if (calendarOpen) closeCalendar();
       else closeSettings();
@@ -2262,9 +2520,11 @@
         ? el.photoViewer
         : (calendarAllOpen
           ? el.calendarAllModal
-          : (photoSheetOpen
-            ? el.photoSheet
-            : (calendarOpen ? el.calendarModal : el.settingsDrawer))));
+          : (shopOpen
+            ? el.shopModal
+            : (photoSheetOpen
+              ? el.photoSheet
+              : (calendarOpen ? el.calendarModal : el.settingsDrawer)))));
     if (!scope) return;
     const nodes = focusableIn(scope);
     if (!nodes.length) return;
@@ -2439,6 +2699,16 @@
       history: sanitizeHistory(data.history),
       sound: data.sound !== false,
       theme: data.theme === 'light' ? 'light' : 'dark',
+      luckyCharms: Number.isFinite(Number(data.luckyCharms))
+        ? clamp(Math.floor(Number(data.luckyCharms)), 0, MAX_CHARMS)
+        : 0,
+      unlockedSkins: Array.from(new Set(['classic'].concat(
+        Array.isArray(data.unlockedSkins)
+          ? data.unlockedSkins.filter(function (skin) { return SKIN_IDS.indexOf(skin) >= 0; })
+          : []
+      ))),
+      reelSkin: (Array.isArray(data.unlockedSkins) && data.unlockedSkins.indexOf(data.reelSkin) >= 0)
+        ? data.reelSkin : 'classic',
       date: date,
       exportedAt: parsed && parsed.exportedAt ? String(parsed.exportedAt) : ''
     };
@@ -2458,7 +2728,15 @@
     state.history = backup.history;
     state.sound = backup.sound;
     state.theme = backup.theme;
+    state.luckyCharms = backup.luckyCharms || 0;
+    state.unlockedSkins = backup.unlockedSkins && backup.unlockedSkins.length
+      ? backup.unlockedSkins.slice() : ['classic'];
+    state.reelSkin = backup.reelSkin && state.unlockedSkins.indexOf(backup.reelSkin) >= 0
+      ? backup.reelSkin : 'classic';
     applyTheme(state.theme, false);
+    applyReelSkin();
+    renderShop();
+    renderCharmStatus();
     pruneScheduledPlans(today);
     ensurePlanInstances();
     audio.setEnabled(state.sound);
@@ -3175,6 +3453,12 @@
     state.spins = 0;
     state.totalStars = 0;
     state.history = {};
+    state.luckyCharms = 0;
+    state.reelSkin = 'classic';
+    state.unlockedSkins = ['classic'];
+    applyReelSkin();
+    renderShop();
+    renderCharmStatus();
     await clearPhotoStore().catch(function () {});
     renderPhotoStorageInfo();
     saveState();
@@ -3454,19 +3738,22 @@
   }
 
   /* ========== 结果生成 ========== */
-  function chooseTier() {
+  function chooseTier(useCharm) {
     if (forcedTier && TIERS[forcedTier]) {
       const forced = forcedTier;
       forcedTier = null;
       return forced;
     }
-    const total = TIER_WEIGHTS.reduce(function (sum, item) { return sum + item.weight; }, 0);
+    const pool = useCharm
+      ? TIER_WEIGHTS.filter(function (item) { return item.tier !== 'none'; })
+      : TIER_WEIGHTS;
+    const total = pool.reduce(function (sum, item) { return sum + item.weight; }, 0);
     let roll = Math.random() * total;
-    for (let i = 0; i < TIER_WEIGHTS.length; i += 1) {
-      roll -= TIER_WEIGHTS[i].weight;
-      if (roll <= 0) return TIER_WEIGHTS[i].tier;
+    for (let i = 0; i < pool.length; i += 1) {
+      roll -= pool[i].weight;
+      if (roll <= 0) return pool[i].tier;
     }
-    return 'none';
+    return useCharm ? 'pair' : 'none';
   }
 
   function makeCenters(tier) {
@@ -3614,7 +3901,9 @@
     el.spinBtn.classList.toggle('is-spinning', busy);
     el.spinBtn.setAttribute('aria-busy', String(busy));
     el.spinTitle.textContent = busy ? '好运转动中' : '摇一摇';
-    el.spinSub.textContent = busy ? 'GOOD LUCK' : 'SPIN FOR LUCK';
+    el.spinSub.textContent = busy
+      ? 'GOOD LUCK'
+      : (state.luckyCharms > 0 ? '🍀 幸运符 ×' + state.luckyCharms : 'SPIN FOR LUCK');
     el.cabinet.classList.toggle('is-working', busy);
   }
 
@@ -3650,7 +3939,14 @@
     el.resultReward.textContent = '';
     audio.spinStart();
 
-    const outcome = buildOutcome(chooseTier());
+    const charmUsed = state.luckyCharms > 0 && !forcedTier;
+    if (charmUsed) {
+      state.luckyCharms -= 1;
+      saveState();
+      renderShop();
+      renderCharmStatus();
+    }
+    const outcome = buildOutcome(chooseTier(charmUsed));
     const waitAfter = prefersReducedMotion ? 60 : 180;
 
     const finishSpinState = function () {
@@ -3688,6 +3984,11 @@
       })
       .then(function () {
         applyOutcome(outcome);
+        if (charmUsed) {
+          window.setTimeout(function () {
+            showToast('幸运符生效：这一摇不会空手。', 'info', 2800);
+          }, 700);
+        }
       })
       .then(finishSpinState, function (err) {
         if (window.console && console.error) console.error(err);
@@ -4250,7 +4551,16 @@
     }, { once: true, passive: true });
 
     el.streakPill.addEventListener('click', openCalendar);
-    el.starsPill.addEventListener('click', refreshInspirationDisplay);
+    el.starsPill.addEventListener('click', function () { openShop(el.starsPill); });
+    el.openShopBtn.addEventListener('click', function () { openShop(el.openShopBtn); });
+    el.shopClose.addEventListener('click', closeShop);
+    $$('[data-close-shop]').forEach(function (node) {
+      node.addEventListener('click', closeShop);
+    });
+    el.shopList.addEventListener('click', function (event) {
+      const button = event.target.closest('[data-shop-buy]');
+      if (button) buyShopItem(button.dataset.shopBuy);
+    });
 
     el.settingsBtn.addEventListener('click', function (event) {
       event.preventDefault();
@@ -4426,6 +4736,7 @@
   function init() {
     initPlatformInfo();
     applyTheme(state.theme, false);
+    applyReelSkin();
     prepareLoadedDay();
     renderBulbs();
     renderDate();
@@ -4437,6 +4748,8 @@
     renderTasks({ scrollTop: 0 });
     renderPlanManager();
     renderPhotoStorageInfo();
+    renderShop();
+    renderCharmStatus();
     bindEvents();
     setupFx();
     setupDebugApi();

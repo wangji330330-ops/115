@@ -4446,3 +4446,241 @@ html.is-android .machine-logo b { letter-spacing: 2px; margin-right: -2px; }
   font-weight: 700;
 }
 .calendar-task-item.is-done .calendar-task-index { color: #a98d7d; }
+
+/* ---------- 灵感商店 ---------- */
+.stat-shop-arrow {
+  margin-left: 3px;
+  color: rgba(255, 218, 166, .55);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1;
+}
+body.shop-open { overflow: hidden; }
+
+.shop-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 405;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.shop-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 5, 12, .72);
+}
+.shop-modal {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 94vw);
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: 22px;
+  border: 1px solid rgba(255, 248, 235, .78);
+  border-radius: 24px;
+  color: #3b2030;
+  background:
+    radial-gradient(ellipse 100% 55% at 100% 0%, rgba(238, 190, 115, .2), transparent 65%),
+    linear-gradient(155deg, #fffaf1, #f3dfc4);
+  box-shadow: 0 32px 80px rgba(8, 4, 13, .5), inset 0 1px 0 rgba(255, 255, 255, .7);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(135, 93, 63, .28) transparent;
+}
+.shop-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.shop-head h2 {
+  margin-top: 4px;
+  color: #3a2030;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 850;
+  letter-spacing: .02em;
+}
+.shop-sub {
+  margin-top: 6px;
+  color: #856b60;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.shop-close {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border: 1px solid rgba(135, 88, 55, .22);
+  border-radius: 50%;
+  color: #7d5a4c;
+  background: rgba(255, 255, 255, .55);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.shop-close:hover { border-color: rgba(135, 88, 55, .42); color: #3d2119; }
+.shop-balance-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin: 15px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(135, 88, 55, .14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .46);
+}
+.shop-balance-label, .shop-balance-unit { color: #95786a; font-size: 9px; }
+.shop-balance {
+  color: #9b5d1f;
+  font-family: var(--font-mono);
+  font-size: 23px;
+  line-height: 1;
+}
+.shop-balance-hint { margin-left: auto; color: #a48a7d; font-size: 8.5px; }
+.shop-list { display: flex; flex-direction: column; gap: 9px; }
+.shop-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid rgba(135, 88, 55, .13);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .45);
+}
+.shop-item-icon {
+  display: grid;
+  place-items: center;
+  width: 37px;
+  height: 37px;
+  flex: 0 0 37px;
+  border: 1px solid rgba(135, 88, 55, .14);
+  border-radius: 11px;
+  background: rgba(255, 250, 241, .8);
+  font-size: 19px;
+}
+.shop-item-copy { flex: 1; min-width: 0; }
+.shop-item-copy strong {
+  display: block;
+  color: #3d2531;
+  font-size: 12px;
+  font-weight: 750;
+}
+.shop-item-copy p {
+  margin-top: 3px;
+  color: #94796c;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.shop-item-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.shop-price {
+  color: #9b5d1f;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.shop-buy {
+  min-width: 66px;
+  height: 29px;
+  padding: 0 9px;
+  border: 1px solid rgba(90, 45, 32, .22);
+  border-radius: 999px;
+  color: #fff6e7;
+  background: #4a2832;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.shop-buy:hover { background: #653140; }
+.shop-buy:disabled {
+  color: #9d8577;
+  border-color: rgba(135, 88, 55, .12);
+  background: rgba(255, 255, 255, .42);
+  cursor: default;
+}
+.shop-buy.is-equipped {
+  color: #4a5639;
+  border-color: rgba(99, 133, 73, .22);
+  background: rgba(186, 221, 153, .34);
+}
+.shop-note {
+  margin-top: 13px;
+  color: #a18676;
+  font-size: 8.5px;
+  line-height: 1.6;
+}
+@media (max-width: 480px) {
+  .shop-layer { padding: 8px; }
+  .shop-modal { padding: 17px 15px; border-radius: 20px; max-height: 92dvh; }
+  .shop-head h2 { font-size: 21px; }
+  .shop-sub { font-size: 9px; }
+  .shop-balance-hint { display: none; }
+  .shop-item { padding: 10px 9px; gap: 9px; }
+  .shop-item-icon { width: 32px; height: 32px; flex-basis: 32px; font-size: 17px; }
+  .shop-item-copy strong { font-size: 11.5px; }
+  .shop-item-copy p { font-size: 8.5px; }
+  .shop-buy { min-width: 58px; font-size: 8.5px; }
+}
+@media (max-width: 350px) {
+  .stat-shop-arrow { display: none; }
+}
+
+/* ---------- 转轮皮肤：只改外观，不改概率 ---------- */
+.cabinet.skin-candy {
+  border-color: rgba(255, 190, 214, .5);
+  background:
+    radial-gradient(circle at 50% -8%, rgba(255, 174, 205, .22), transparent 42%),
+    linear-gradient(158deg, #4b1c38 0%, #6c2548 46%, #2f1226 100%);
+  box-shadow: 0 28px 70px rgba(45, 7, 25, .55), inset 0 1px 0 rgba(255, 226, 240, .2);
+}
+.cabinet.skin-candy .machine-logo b {
+  background: linear-gradient(180deg, #fff8cf 0%, #ffc0d8 38%, #ff74aa 70%, #c93b78 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.cabinet.skin-candy .spin-button {
+  border-color: rgba(255, 224, 184, .7);
+  background: linear-gradient(180deg, #ffeaa8 0%, #ffb6cd 55%, #e76c9a 100%);
+  color: #4a142c;
+}
+.cabinet.skin-candy .spin-button-copy strong { color: #4a142c; }
+.cabinet.skin-candy .spin-button-copy small { color: rgba(74, 20, 44, .58); }
+.cabinet.skin-candy .payline-line {
+  background: linear-gradient(90deg, transparent, rgba(255, 145, 186, .85), transparent);
+}
+.cabinet.skin-candy .bulb { background: #ffd1df; box-shadow: 0 0 8px rgba(255, 155, 190, .6); }
+
+.cabinet.skin-night {
+  border-color: rgba(124, 210, 255, .4);
+  background:
+    radial-gradient(circle at 50% -8%, rgba(85, 184, 255, .2), transparent 45%),
+    linear-gradient(158deg, #061426 0%, #0a2b45 46%, #040b14 100%);
+  box-shadow: 0 28px 70px rgba(2, 8, 18, .65), inset 0 1px 0 rgba(189, 240, 255, .16);
+}
+.cabinet.skin-night .machine-logo b {
+  background: linear-gradient(180deg, #effdff 0%, #8fe6ff 38%, #3d9cff 70%, #1c55a9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.cabinet.skin-night .spin-button {
+  border-color: rgba(170, 235, 255, .55);
+  background: linear-gradient(180deg, #d9fbff 0%, #7bd8ff 55%, #2d80c1 100%);
+  color: #062435;
+}
+.cabinet.skin-night .spin-button-copy strong { color: #062435; }
+.cabinet.skin-night .spin-button-copy small { color: rgba(6, 36, 53, .58); }
+.cabinet.skin-night .payline-line {
+  background: linear-gradient(90deg, transparent, rgba(116, 220, 255, .85), transparent);
+}
+.cabinet.skin-night .bulb { background: #bdefff; box-shadow: 0 0 8px rgba(103, 208, 255, .6); }
